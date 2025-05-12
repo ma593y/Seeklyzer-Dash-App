@@ -18,13 +18,15 @@ load_dotenv()
 print("[INIT] Environment variables loaded")
 
 # Initialize the Dash app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, title="Seeklyzer - Find Roles That Truly Fit")
 app.config.suppress_callback_exceptions = True
 print("[INIT] Dash app initialized with Bootstrap theme")
 
 # App layout
 app.layout = dbc.Container([
-    html.H1("Seeklyzer - Resume: Uploading > Parsing > Formatting > Saving", className="text-center my-4"),
+    html.H1("Seeklyzer - Find Roles That Truly Fit", className="text-center my-4"),
+
+    html.H5("Resume Tool: Uploading > Parsing > Formatting > Saving / Downloading", className="text-center my-4"),
     
     # Global alert area for application-wide messages
     html.Div(id="global-alert-container", className="mb-3"),
@@ -132,6 +134,7 @@ def update_upload_area(contents, filename):
             'backgroundColor': '#f0fff0'
         }, dbc.Alert(
             f"PDF file '{filename}' selected successfully. Click 'Parse Resume' to extract text.",
+            className="text-center",
             color="success",
             dismissable=True,
             is_open=True,
@@ -152,6 +155,7 @@ def update_upload_area(contents, filename):
             'backgroundColor': '#fff9f0'
         }, dbc.Alert(
             f"Warning: '{filename}' is not a PDF file. Only PDF files are supported.",
+            className="text-center",
             color="warning",
             dismissable=True,
             is_open=True,
@@ -172,8 +176,9 @@ def update_output(n_clicks, content, filename):
     """Processes the uploaded PDF file to extract text content with feedback."""
     if content is None:
         print("[PARSE] No file content available")
-        return html.P("Please upload a PDF file before parsing."), "", dbc.Alert(
-            "No file selected. Please upload a PDF first.", 
+        return html.P("Please upload a PDF file before parsing.", className="text-center"), "", dbc.Alert(
+            "No file selected. Please upload a PDF first.",
+            className="text-center",
             color="danger",
             dismissable=True,
             is_open=True,
@@ -182,8 +187,9 @@ def update_output(n_clicks, content, filename):
 
     if not filename.lower().endswith('.pdf'):
         print(f"[PARSE] File {filename} is not a PDF")
-        return html.P("Please upload a PDF file."), "", dbc.Alert(
+        return html.P("Please upload a PDF file.", className="text-center"), "", dbc.Alert(
             f"'{filename}' is not a PDF file. Please select a valid PDF.",
+            className="text-center",
             color="warning",
             dismissable=True,
             is_open=True,
@@ -217,6 +223,7 @@ def update_output(n_clicks, content, filename):
                     html.I(className="fas fa-check-circle me-2"),
                     f"Successfully extracted {len(text)} characters from {page_count} page{'s' if page_count != 1 else ''}."
                 ],
+                className="text-center",
                 color="success",
                 dismissable=True,
                 is_open=True,
@@ -255,6 +262,7 @@ def update_output(n_clicks, content, filename):
                 html.I(className="fas fa-exclamation-triangle me-2"), 
                 f"Error processing PDF: {str(e)}"
             ],
+            className="text-center",
             color="danger",
             dismissable=True,
             is_open=True,
@@ -289,8 +297,9 @@ def format_text(n_clicks, raw_text):
     
     if not raw_text:
         print("[FORMAT] No raw text available")
-        return html.P("No text available to format. Please parse a resume first."), "", dbc.Alert(
+        return html.P("No text available to format. Please parse a resume first.", className="text-center"), "", dbc.Alert(
             "No text to format. Please upload and parse a resume first.",
+            className="text-center",
             color="warning",
             dismissable=True,
             is_open=True,
@@ -314,6 +323,7 @@ def format_text(n_clicks, raw_text):
                     html.I(className="fas fa-key me-2"),
                     "API Key not found. Please set the XAI_API_KEY environment variable to enable formatting."
                 ],
+                className="text-center",
                 color="danger",
                 dismissable=True,
                 is_open=True,
@@ -367,6 +377,7 @@ def format_text(n_clicks, raw_text):
                 html.I(className="fas fa-check-circle me-2"),
                 f"Resume formatted successfully in {duration:.2f} seconds using Grok-3-mini model."
             ],
+            className="text-center",
             color="success",
             dismissable=True,
             is_open=True,
@@ -385,6 +396,7 @@ def format_text(n_clicks, raw_text):
                 html.I(className="fas fa-exclamation-circle me-2"),
                 f"Error during formatting: {str(e)}"
             ],
+            className="text-center",
             color="danger",
             dismissable=True,
             is_open=True,
@@ -405,6 +417,7 @@ def save_resume(n_clicks, formatted_text):
         print("[SAVE] No formatted text available")
         return dbc.Alert(
             "No text available to save. Please parse and format a resume first.",
+            className="text-center",
             color="danger",
             dismissable=True,
             is_open=True,
@@ -423,6 +436,7 @@ def save_resume(n_clicks, formatted_text):
         print(f"[SAVE] Saved to {filename}")
         return dbc.Alert(
             "Resume saved successfully!",
+            className="text-center",
             color="success",
             dismissable=True,
             is_open=True,
@@ -434,6 +448,7 @@ def save_resume(n_clicks, formatted_text):
         traceback.print_exc()
         return dbc.Alert(
             f"Error saving file: {str(e)}",
+            className="text-center",
             color="danger",
             dismissable=True,
             is_open=True,
@@ -458,6 +473,7 @@ def download_resume(n_clicks, formatted_text):
                 html.I(className="fas fa-exclamation-triangle me-2"),
                 "No text available to download. Please parse and format a resume first."
             ],
+            className="text-center",
             color="danger",
             dismissable=True,
             is_open=True,
@@ -473,6 +489,7 @@ def download_resume(n_clicks, formatted_text):
             html.I(className="fas fa-download me-2"),
             f"Downloading '{filename}' ({len(formatted_text)} characters)"
         ],
+        className="text-center",
         color="success",
         dismissable=True,
         is_open=True,
@@ -491,10 +508,11 @@ def show_welcome_message(_):
             html.Strong("Welcome to Seeklyzer! "),
             "Upload a resume PDF to get started. This application will extract, format, and help you save resume information."
         ],
+        className="text-center",
         color="info",
-        dismissable=True,
+        dismissable=False,
         is_open=True,
-        duration=8000
+        # duration=8000
     )
 
 # Add hidden div to trigger the welcome message
@@ -511,6 +529,7 @@ def create_processing_alert(message):
                 ]
             )
         ],
+        className="text-center",
         color="info",
         dismissable=False,
         is_open=True
