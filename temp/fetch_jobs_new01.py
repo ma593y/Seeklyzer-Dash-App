@@ -6,7 +6,13 @@ from bs4 import BeautifulSoup
 
 def fetch_data(url):
     """
-    Block 1: Fetch JSON data from the API.
+    Fetches JSON data from the specified API endpoint.
+    
+    Parameters:
+        url (str): The API endpoint to fetch data from
+        
+    Returns:
+        dict/list: Parsed JSON response, or None if request failed
     """
     print(f"Fetching data from URL: {url}")
     response = requests.get(url)
@@ -25,10 +31,15 @@ def fetch_data(url):
 
 def extract_job_listings(data):
     """
-    Block 2: Turn raw items into a list of flattened job_listing dicts.
-    Prints any KeyErrors and the final lists of errors & listings.
+    Extracts and flattens job listings from raw API data.
+    
+    Parameters:
+        data (list): List of raw job listing items from the API
+        
+    Returns:
+        list: Processed list of job listing dictionaries
     """
-    print(f"Starting extraction of job listings from data with {len(data)} items")
+    print(f"Starting extraction of job listings from {len(data)} raw data items")
     job_listings_data = []
     error_keys = []
 
@@ -76,31 +87,40 @@ def extract_job_listings(data):
                 "tags_0_label": item["tags"][0]["label"] if "tags" in item else "",
             }
         except KeyError as e:
-            print(f"KeyError: {e}")
+            print(f"KeyError when processing job ID {item.get('id', 'unknown')}: {e}")
             error_keys.append(str(e))
-            print(json.dumps(item, indent=4))
+            # Print only essential info for debugging
+            print(f"Problem item keys: {list(item.keys())}")
             continue
 
         job_listings_data.append(job_listing)
 
     unique_errors = list(set(error_keys))
-    print(f"Extraction complete: {len(job_listings_data)} listings extracted with {len(unique_errors)} unique KeyErrors")
-    print(json.dumps(unique_errors, indent=4))
+    print(f"Extraction complete: {len(job_listings_data)} valid listings extracted")
+    if unique_errors:
+        print(f"Encountered {len(unique_errors)} types of KeyErrors: {', '.join(unique_errors)}")
     return job_listings_data
 
 def preprocess_dataframe(job_listings_data):
     """
-    Block 3: Load into pandas, clean, enrich, reorder, and drop unwanted columns.
-    Returns the final DataFrame.
+    Processes job listings data into a clean, structured DataFrame.
+    
+    Performs cleaning, enrichment, column renaming, and removes unwanted data.
+    
+    Parameters:
+        job_listings_data (list): List of job listing dictionaries
+        
+    Returns:
+        DataFrame: Processed and cleaned pandas DataFrame
     """
     print(f"Preprocessing dataframe from {len(job_listings_data)} job listings")
     df = pd.DataFrame(job_listings_data)
-    print(f"Initial DataFrame shape: {df.shape}")
+    print(f"Created DataFrame with {df.shape[0]} rows and {df.shape[1]} columns")
 
     df = df[df['isFeatured'] != True]
-    print(f"After filtering featured listings: {df.shape}")
+    print(f"Removed featured listings: {df.shape[0]} rows remaining")
     df = df.drop_duplicates(subset=['id'])
-    print(f"After dropping duplicates: {df.shape}")
+    print(f"Removed duplicates: {df.shape[0]} rows remaining")
 
     column_mapping = {
         "id": "job_id",
@@ -124,6 +144,7 @@ def preprocess_dataframe(job_listings_data):
         "workTypes_0": "work_type"
     }
 
+    print("Renaming columns for clarity...")
     df = df.rename(columns=column_mapping)
     print("Columns renamed according to mapping")
 
@@ -141,7 +162,7 @@ def preprocess_dataframe(job_listings_data):
 
     df['job_description'] = (df['job_teaser'].fillna('') + ' | ' + df['highlights'].fillna('') + ' | ' + df['job_description']).apply(lambda x: re.sub(r'\s+', ' ', x).strip())
 
-    print("Job descriptions cleaned and combined")
+    print("Job descriptions cleaned and merged")
 
     df['location'] = (df['location_label'].fillna('') + ' - ' + df['location_country_code'].fillna(''))
 
@@ -177,36 +198,56 @@ def preprocess_dataframe(job_listings_data):
         "Job Url",
         "Job Description",
     ]
+    print(f"Creating final DataFrame with {len(new_column_order)} columns")
     final_df = df[new_column_order]
-    print(f"Final DataFrame ready with shape: {final_df.shape}")
+    print(f"Final DataFrame ready: {final_df.shape[0]} jobs with {final_df.shape[1]} attributes")
     return final_df
 
 def save_outputs(df):
     """
-    Block 4: Export the final DataFrame to Excel and JSON.
+    Exports the final DataFrame to multiple file formats.
+    
+    Saves the data as Excel (.xlsx), Feather (.feather),
+    Parquet (.parquet), and JSON (.json) files.
+    
+    Parameters:
+        df (DataFrame): The processed DataFrame to save
     """
-    print(f"Saving outputs: Excel, JSON, plus feather and parquet formats")
+    print("Saving outputs to multiple formats...")
 
-    file_name ='preprocessed_job_listings'
+    file_name = 'preprocessed_job_listings'
+    print(f"Saving {df.shape[0]} job listings to files with base name: {file_name}")
 
     df.to_excel(f'{file_name}.xlsx', index=False)
+    print(f"✓ Excel file saved: {file_name}.xlsx")
     df.to_feather(f'{file_name}.feather')
+    print(f"✓ Feather file saved: {file_name}.feather")
     df.to_parquet(f'{file_name}.parquet', index=False)
+    print(f"✓ Parquet file saved: {file_name}.parquet") 
     df.to_json(f'{file_name}.json', orient='records', lines=True)
-    print("All files saved successfully")
+    print(f"✓ JSON file saved: {file_name}.json")
+    print("All output files saved successfully")
 
 def main():
-    print("Starting job listings data pipeline...")
+    print("=" * 60)
+    print("STARTING JOB LISTINGS DATA PIPELINE")
+    print("=" * 60)
     url = "https://api.apify.com/v2/datasets/JjAzvUEH4pSeV294Q/items?clean=true&format=json"
     data = fetch_data(url)
     if not data:
-        print("No data retrieved; exiting pipeline.")
+        print("ERROR: No data retrieved; exiting pipeline.")
         return
 
+    print("-" * 60)
     job_listings = extract_job_listings(data)
+    print("-" * 60)
     df = preprocess_dataframe(job_listings)
+    print("-" * 60)
     save_outputs(df)
-    print("Pipeline completed successfully")
+    print("=" * 60)
+    print(f"PIPELINE COMPLETED: Processed {df.shape[0]} job listings successfully")
+    print("=" * 60)
+
 
 if __name__ == "__main__":
     main()
