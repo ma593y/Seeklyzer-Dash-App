@@ -455,10 +455,10 @@ def save_resume(n_clicks, formatted_text):
         )
     
     try:
-        os.makedirs("resumes", exist_ok=True)
+        os.makedirs("data/formatted_resumes_files", exist_ok=True)
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"resumes/resume_{timestamp}.txt"
+        filename = f"data/formatted_resumes_files/resume_{timestamp}.txt"
         
         with open(filename, "w", encoding="utf-8") as f:
             f.write(formatted_text)
@@ -705,10 +705,10 @@ def save_json(n_clicks, json_data):
         )
     
     try:
-        os.makedirs("json_resumes", exist_ok=True)
+        os.makedirs("data/json_resumes_files", exist_ok=True)
         
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"json_resumes/resume_{timestamp}.json"
+        filename = f"data/json_resumes_files/resume_{timestamp}.json"
         
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(json_data, f, ensure_ascii=False, indent=4)

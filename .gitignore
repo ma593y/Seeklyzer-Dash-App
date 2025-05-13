@@ -122,3 +122,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# data files
+data/formatted_resumes_files/resume_*.txt
+data/json_resumes_files/resume_*.json
