@@ -58,7 +58,7 @@ def extract_job_listings(data):
                 "teaser": item["teaser"],
                 "roleId": item["roleId"] if "roleId" in item else "",
                 "salaryLabel": item["salaryLabel"] if "salaryLabel" in item else "",
-                "companyProfileStructuredDataId": item["companyProfileStructuredDataId"] if "companyProfileStructuredDataId" in item else "",
+                "companyProfileStructuredDataId": str(item["companyProfileStructuredDataId"]) if "companyProfileStructuredDataId" in item else "",
                 "content": item["content"],
                 "advertiser_id": item["advertiser"]["id"] if "id" in item["advertiser"] else "",
                 "advertiser_description": item["advertiser"]["description"],
@@ -125,7 +125,7 @@ def preprocess_dataframe(job_listings_data):
     column_mapping = {
         "id": "job_id",
         "title": "job_title",
-        "companyName": "companyName",
+        "companyName": "company_name",
         "url": "job_url",
         "listingDate": "posting_date",
         "teaser": "job_teaser",
@@ -133,7 +133,7 @@ def preprocess_dataframe(job_listings_data):
         "salaryLabel": "salary_range",
         "content": "job_description",
         "advertiser_id": "advertiser_id",
-        "advertiser_description": "company_name",
+        "advertiser_description": "advertiser_name",
         "branding_serpLogoUrl": "advertiser_logo_url",
         "locations_0_countryCode": "location_country_code",
         "locations_0_label": "location_label",
@@ -158,9 +158,9 @@ def preprocess_dataframe(job_listings_data):
     
     print("Highlights consolidated")
 
-    df['job_description'] = df['job_description'].apply(lambda x: BeautifulSoup(x, 'html.parser').get_text(separator='   ') if x else '')
+    df['job_description_cleaned'] = df['job_description'].apply(lambda x: BeautifulSoup(x, 'html.parser').get_text(separator='   ') if x else '')
 
-    df['job_description'] = (df['job_teaser'].fillna('') + ' | ' + df['highlights'].fillna('') + ' | ' + df['job_description']).apply(lambda x: re.sub(r'\s+', ' ', x).strip())
+    df['job_description_merged'] = (df['job_teaser'].fillna('') + ' | ' + df['highlights'].fillna('') + ' | ' + df['job_description_cleaned']).apply(lambda x: re.sub(r'\s+', ' ', x).strip())
 
     print("Job descriptions cleaned and merged")
 
@@ -170,37 +170,71 @@ def preprocess_dataframe(job_listings_data):
 
     df.replace(regex={r'[\ud800-\udfff]': ''}, inplace=True)
 
+    df.columns = [col.title().replace('_', ' ') for col in df.columns]
+
+    print("Column names formatted to title case and underscores replaced with spaces")
+    print(json.dumps(list(df.columns), indent=4))
+
     columns_to_drop = [
-        'listingDateDisplay', 'isFeatured', 'displayType', 'displayStyle_search',
-        'companyProfileStructuredDataId', 'locations_0_seoHierarchy_0_contextualName',
-        'locations_0_seoHierarchy_1_contextualName', 'classifications_0_classification_id',
-        'classifications_0_classification_description', 'classifications_0_subclassification_id',
-        'classifications_0_subclassification_description', 'classifications_1_classification_id',
-        'classifications_1_subclassification_id', 'classifications_1_subclassification_description',
-        'workArrangements_displayText', 'workArrangements_data_0_id', 'tags_0_type', 'tags_0_label',
-        'classifications_1_classification_description', 'classifications_1_subclassification', 'companyName',
-        'highlight_point_1', 'highlight_point_2', 'highlight_point_3', 'location_country_code',
-        'location_label', 'role_id', 'job_teaser', 'advertiser_id', 'highlights', 'advertiser_logo_url'
+        "Listingdatedisplay",
+        "Isfeatured",
+        "Displaytype",
+        "Displaystyle Search",
+        "Companyprofilestructureddataid",
+        "Classifications 1 Classification Id",
+        "Classifications 1 Classification Description",
+        "Classifications 1 Subclassification",
+        "Classifications 1 Subclassification Id",
+        "Classifications 1 Subclassification Description",
+        "Workarrangements Displaytext",
+        "Workarrangements Data 0 Id",
     ]
     
     df.drop(columns=columns_to_drop, errors='ignore', inplace=True)
     print("Dropped unnecessary columns")
 
-    df.columns = [col.title().replace('_', ' ') for col in df.columns]
     new_column_order = [
         "Job Id",
+        "Role Id",
         "Job Title",
         "Company Name",
-        "Work Type",
-        "Work Arrangement",
-        "Location",
-        "Posting Date",
         "Job Url",
+        "Posting Date",
+        "Salary Range",
+        "Advertiser Id",
+        "Advertiser Name",
+        "Advertiser Logo Url",
+        "Location",
+        "Location Country Code",
+        "Location Label",
+        "Locations 0 Seohierarchy 0 Contextualname",
+        "Locations 0 Seohierarchy 1 Contextualname",
+        "Classifications 0 Classification Id",
+        "Classifications 0 Classification Description",
+        "Classifications 0 Subclassification Id",
+        "Classifications 0 Subclassification Description",
+        "Job Teaser",
+        "Highlight Point 1",
+        "Highlight Point 2",
+        "Highlight Point 3",
         "Job Description",
+        "Job Description Cleaned",
+        "Job Description Merged",
+        "Work Arrangement",
+        "Work Type",
+        "Tags 0 Type",
+        "Tags 0 Label",
+        "Highlights",
     ]
+
     print(f"Creating final DataFrame with {len(new_column_order)} columns")
     final_df = df[new_column_order]
     print(f"Final DataFrame ready: {final_df.shape[0]} jobs with {final_df.shape[1]} attributes")
+
+    print("Reordering columns to final format...")
+    print("Final DataFrame columns:")
+    print(json.dumps(list(final_df.columns), indent=4))
+
     return final_df
 
 def save_outputs(df):
