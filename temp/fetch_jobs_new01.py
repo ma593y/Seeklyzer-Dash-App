@@ -101,6 +101,43 @@ def extract_job_listings(data):
         print(f"Encountered {len(unique_errors)} types of KeyErrors: {', '.join(unique_errors)}")
     return job_listings_data
 
+# Define a function to format each row's details
+def create_job_details(row):
+    job_details = ""
+
+    if row['Job Id']:
+        job_details += f"Job Id: {row['Job Id']}\n"
+    if row['Role Id']:
+        job_details += f"Role Id: {row['Role Id']}\n"
+    if row['Job Title']:
+        job_details += f"Job Title: {row['Job Title']}\n"
+    if row['Work Arrangement']:
+        job_details += f"Work Arrangement: {row['Work Arrangement']}\n"
+    if row['Work Type']:
+        job_details += f"Work Type: {row['Work Type']}\n"
+    if row['Posting Date']:
+        job_details += f"Posting Date: {row['Posting Date']}\n"
+    if row['Salary Range']:
+        job_details += f"Salary Range: {row['Salary Range']}\n"
+    if row['Company Name']:
+        job_details += f"Company Name: {row['Company Name']}\n"
+    if row['Advertiser Name']:
+        job_details += f"Advertiser Name: {row['Advertiser Name']}\n"
+    if row['Location']:
+        job_details += f"Location: {row['Location']}\n"
+    if row['Job Teaser']:
+        job_details += f"Job Teaser: {row['Job Teaser']}\n"
+    if row['Highlight Point 1']:
+        job_details += f"Highlight Point 1: {row['Highlight Point 1']}\n"
+    if row['Highlight Point 2']:
+        job_details += f"Highlight Point 2: {row['Highlight Point 2']}\n"
+    if row['Highlight Point 3']:
+        job_details += f"Highlight Point 3: {row['Highlight Point 3']}\n"
+    if row['Job Description Cleaned']:
+        job_details += f"Job Description: {row['Job Description Cleaned']}"
+
+    return job_details
+
 def preprocess_dataframe(job_listings_data):
     """
     Processes job listings data into a clean, structured DataFrame.
@@ -160,8 +197,6 @@ def preprocess_dataframe(job_listings_data):
 
     df['job_description_cleaned'] = df['job_description'].apply(lambda x: BeautifulSoup(x, 'html.parser').get_text(separator='   ') if x else '')
 
-    df['job_description_merged'] = (df['job_teaser'].fillna('') + ' | ' + df['highlights'].fillna('') + ' | ' + df['job_description_cleaned']).apply(lambda x: re.sub(r'\s+', ' ', x).strip())
-
     print("Job descriptions cleaned and merged")
 
     df['location'] = (df['location_label'].fillna('') + ' - ' + df['location_country_code'].fillna(''))
@@ -192,15 +227,24 @@ def preprocess_dataframe(job_listings_data):
     
     df.drop(columns=columns_to_drop, errors='ignore', inplace=True)
     print("Dropped unnecessary columns")
+    
+    # Add a comment explaining Job Details column creation
+    print("Creating formatted Job Details column...")
+
+    # Apply the formatting function to each row
+    df['Job Details'] = df.apply(create_job_details, axis=1)
+
+    print("Job Details column created with formatted content for each listing")
 
     new_column_order = [
         "Job Id",
         "Role Id",
         "Job Title",
-        "Company Name",
-        "Job Url",
+        "Work Arrangement",
+        "Work Type",
         "Posting Date",
         "Salary Range",
+        "Company Name",
         "Advertiser Id",
         "Advertiser Name",
         "Advertiser Logo Url",
@@ -214,17 +258,16 @@ def preprocess_dataframe(job_listings_data):
         "Classifications 0 Subclassification Id",
         "Classifications 0 Subclassification Description",
         "Job Teaser",
+        "Highlights",
         "Highlight Point 1",
         "Highlight Point 2",
         "Highlight Point 3",
         "Job Description",
         "Job Description Cleaned",
-        "Job Description Merged",
-        "Work Arrangement",
-        "Work Type",
+        "Job Details",
         "Tags 0 Type",
         "Tags 0 Label",
-        "Highlights",
+        "Job Url",
     ]
 
     print(f"Creating final DataFrame with {len(new_column_order)} columns")
