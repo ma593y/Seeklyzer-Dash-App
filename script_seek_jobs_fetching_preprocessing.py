@@ -292,7 +292,7 @@ def save_outputs(df):
     """
     print("Saving outputs to multiple formats...")
 
-    file_name = 'preprocessed_seek_jobs'
+    file_name = 'data/preprocessed_seek_jobs_files/preprocessed_seek_jobs'
     print(f"Saving {df.shape[0]} job listings to files with base name: {file_name}")
 
     df.to_excel(f'{file_name}.xlsx', index=False)
