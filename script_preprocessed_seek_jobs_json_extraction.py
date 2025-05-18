@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from langchain_xai import ChatXAI
 import pandas as pd
 from tqdm import tqdm
+import concurrent.futures
+from functools import partial
 
 # Load environment variables
 load_dotenv()
@@ -110,28 +112,45 @@ def process_job_descriptions():
     # Create a new column for the extracted data
     df['Extracted Details'] = None
     
-    # Process each job description
-    print(f"Processing {len(df)} job descriptions...")
+    # Process each job description in parallel
+    print(f"Processing {len(df)} job descriptions in parallel...")
     start_time = time.time()
     successful_extractions = 0
     
-    for i in tqdm(range(len(df))):
+    # Define a worker function for parallel processing
+    def process_single_job(i, dataframe):
         try:
-            job_details = df.loc[i, 'Job Details']
+            job_details = dataframe.loc[i, 'Job Details']
             if isinstance(job_details, str) and job_details.strip():
-                print(f"\nProcessing job #{i+1}/{len(df)}")
+                print(f"\nProcessing job #{i+1}/{len(dataframe)}")
                 extracted_json = extract_job_description(job_details)
-                df.loc[i, 'Extracted Details'] = extracted_json
-                successful_extractions += 1
+                return i, extracted_json, True
             else:
                 print(f"Skipping row {i}: Empty or invalid job details")
+                return i, None, False
         except Exception as e:
             print(f"ERROR processing row {i}: {str(e)}")
-
-        # Debug: Process only the first row during development
-        # TODO: Remove this break statement for full processing
-        # print("DEBUG MODE: Processing only first row")
-        # break
+            return i, None, False
+    
+    # Use max_workers appropriate for your CPU (e.g., 3-4 for typical systems)
+    max_workers = 16  # Adjust based on your system capabilities
+    
+    # DEBUG MODE: Process only a subset during development
+    debug_mode = False  # Set to False for full processing
+    indices_to_process = range(1) if debug_mode else range(len(df))
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Create a partial function with the dataframe argument bound
+        worker_func = partial(process_single_job, dataframe=df)
+        
+        # Process jobs in parallel
+        results = list(executor.map(worker_func, indices_to_process))
+    
+    # Update the dataframe with results
+    for i, extracted_json, success in results:
+        if success:
+            df.loc[i, 'Extracted Details'] = extracted_json
+            successful_extractions += 1
     
     # Calculate processing statistics
     total_time = time.time() - start_time
