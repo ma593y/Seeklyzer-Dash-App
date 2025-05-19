@@ -57,36 +57,43 @@ layout = dbc.Container([
         ], width=4),
     ]),
     
-    # Pagination controls
-    dbc.Row([
-        dbc.Col([
-            dbc.InputGroup([
-                dbc.InputGroupText("Page Size"),
-                dbc.Select(
-                    id="page-size-selector",
-                    options=[
-                        {"label": "10 items", "value": "10"},
-                        {"label": "25 items", "value": "25"},
-                        {"label": "50 items", "value": "50"},
-                        {"label": "100 items", "value": "100"},
-                    ],
-                    value="10",
-                    className="flex-grow-0",
-                    style={"width": "120px"}
-                ),
-            ], className="mb-3"),
-        ], width=4),
-        dbc.Col([
-            dbc.InputGroup([
-                dbc.Button("Previous", id="previous-page-button", color="secondary", outline=True),
-                dbc.InputGroupText(id="page-indicator", children="Page 1"),
-                dbc.Button("Next", id="next-page-button", color="secondary", outline=True),
-            ], className="mb-3 justify-content-end"),
-        ], width=8),
-    ]),
-    
     # Data table
     html.Div(id="job-table-container", className="mb-4"),
+    
+    # Pagination controls (moved below the table and centered)
+    dbc.Row([
+        dbc.Col([
+            dbc.Row([
+                # Page size selector
+                dbc.Col([
+                    dbc.InputGroup([
+                        dbc.InputGroupText("Page Size"),
+                        dbc.Select(
+                            id="page-size-selector",
+                            options=[
+                                {"label": "10 items", "value": "10"},
+                                {"label": "25 items", "value": "25"},
+                                {"label": "50 items", "value": "50"},
+                                {"label": "100 items", "value": "100"},
+                            ],
+                            value="10",
+                            className="flex-grow-0",
+                            style={"width": "120px"}
+                        ),
+                    ], className="mb-3 justify-content-center"),
+                ], width="auto", className="me-3"),
+                
+                # Navigation buttons
+                dbc.Col([
+                    dbc.InputGroup([
+                        dbc.Button("Previous", id="previous-page-button", color="secondary", outline=True),
+                        dbc.InputGroupText(id="page-indicator", children="Page 1"),
+                        dbc.Button("Next", id="next-page-button", color="secondary", outline=True),
+                    ], className="mb-3 justify-content-center"),
+                ], width="auto"),
+            ], justify="center"),  # Center the row contents
+        ], width=12, className="text-center"),  # Use full width and center text
+    ]),
     
     # Job details modal
     dbc.Modal([
