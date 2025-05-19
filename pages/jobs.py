@@ -1,37 +1,10 @@
 import dash
-from dash import html, dcc, callback, dash_table, Input, Output, State
+from dash import html, dcc
 import dash_bootstrap_components as dbc
 import pandas as pd
-import os
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, field
-
-# Configuration
-@dataclass
-class TableConfig:
-    DEFAULT_PAGE_SIZE: int = 10
-    PAGE_SIZE_OPTIONS: List[Dict[str, str]] = field(default_factory=lambda: [
-        {"label": "10 items", "value": "10"},
-        {"label": "25 items", "value": "25"},
-        {"label": "50 items", "value": "50"},
-        {"label": "100 items", "value": "100"},
-    ])
-    DISPLAY_COLUMNS: List[str] = field(default_factory=lambda: [
-        "Job Title", "Work Arrangement", "Work Type", 
-        "Posting Date", "Company Name", "Location", "Actions"
-    ])
-    COLUMN_FORMATS: Dict[str, str] = field(default_factory=lambda: {
-        "Job Title": "30%",
-        "Company Name": "20%",
-        "Location": "15%",
-        "Work Type": "10%",
-        "Work Arrangement": "10%",
-        "Posting Date": "10%",
-        "Actions": "10%"
-    })
-
-config = TableConfig()
+from dash_ag_grid import AgGrid
+import json
+from dash import Input, Output, State, callback
 
 # Register the page
 dash.register_page(
@@ -41,270 +14,125 @@ dash.register_page(
     name='Job Finder'
 )
 
-# Data Loading Functions
-def load_job_data() -> pd.DataFrame:
+def load_job_data():
     """Load and preprocess job data from parquet file."""
-    file_path = "data/preprocessed_seek_jobs_files/preprocessed_seek_jobs_plus_json.parquet"
-    if not os.path.exists(file_path):
-        return pd.DataFrame({"Error": ["File not found. Please run the job preprocessing script first."]})
-    
     try:
-        df = pd.read_parquet(file_path)
-        # Keep all columns in the data
-        if "Posting Date" in df.columns:
-            df["Posting Date"] = pd.to_datetime(df["Posting Date"]).dt.strftime("%Y-%m-%d")
-        
+        df = pd.read_parquet("data/preprocessed_seek_jobs_files/preprocessed_seek_jobs_plus_json.parquet")
+        # Convert JSON columns to strings for display
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, (dict, list)) else str(x))
         return df
     except Exception as e:
-        return pd.DataFrame({"Error": [f"Failed to load data: {str(e)}"]})
+        print(f"Error loading data: {e}")
+        return pd.DataFrame()
 
-# Component Functions
-def create_action_links(job_id: str, job_url: str) -> str:
-    """Create action links for a job row as HTML string."""
-    return f'<a href="{job_url}" target="_blank" rel="noopener noreferrer">View on Seek</a>'
-
-def create_data_table(page_data: List[Dict[str, Any]]) -> dash_table.DataTable:
-    """Create the data table component."""
-    return dash_table.DataTable(
-        id='job-listing-table',
-        columns=[
-            {"name": col, "id": col} for col in config.DISPLAY_COLUMNS if col != "Actions"
-        ] + [{
-            "name": "Actions",
-            "id": "Actions",
-            "type": "text",
-            "presentation": "markdown"
-        }],
-        data=[{
-            **{k: v for k, v in row.items() if k in config.DISPLAY_COLUMNS},
-            "Actions": create_action_links(row["Job Id"], row.get("Job Url", "#"))
-        } for row in page_data],
-        style_table={'overflowX': 'auto'},
-        style_cell={
-            'textAlign': 'left',
-            'padding': '8px',
-            'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-            'whiteSpace': 'nowrap',
+def create_job_grid():
+    """Create and configure the AG Grid component for job listings."""
+    df = load_job_data()
+    if df.empty:
+        return dbc.Alert("No data available", color="warning")
+    
+    # Filter for specific columns
+    columns_to_show = [
+        'Job Id', 'Role Id', 'Job Title', 'Work Arrangement', 
+        'Work Type', 'Posting Date', 'Salary Range', 
+        'Company Name', 'Advertiser Name', 'Location'
+    ]
+    df = df[columns_to_show]
+    
+    # Define column definitions
+    columnDefs = [{"field": col, "filter": True, "sortable": True} for col in df.columns]
+    
+    # Add action column with both View on Seek and View Details buttons
+    columnDefs.append({
+        "field": "actions",
+        "headerName": "Actions",
+        "sortable": False,
+        "filter": False,
+        "cellRenderer": "ActionButtons",
+        "width": "auto",
+        "marginLeft": "10px",
+        "marginRight": "10px",
+        "flex": 0
+    })
+    
+    return AgGrid(
+        id="job-grid",
+        rowData=df.to_dict("records"),
+        columnDefs=columnDefs,
+        defaultColDef={
+            "resizable": True,
+            "sortable": True,
+            "filter": True,
+            "minWidth": 100,
+            "flex": 1,
         },
-        style_cell_conditional=[
-            {
-                'if': {'column_id': col_id},
-                'width': width
-            } for col_id, width in config.COLUMN_FORMATS.items() if col_id in config.DISPLAY_COLUMNS
-        ],
-        style_header={
-            'backgroundColor': 'rgb(230, 230, 230)',
-            'fontWeight': 'bold',
-            'border': '1px solid black'
+        dashGridOptions={
+            "rowHeight": 48,
+            "headerHeight": 48,
+            "pagination": True,
+            "paginationPageSize": 20,
         },
-        style_data_conditional=[
-            {
-                'if': {'row_index': 'odd'},
-                'backgroundColor': 'rgb(248, 248, 248)'
-            }
-        ],
-        page_action='none',
-        row_selectable=False,
-        cell_selectable=False,
-        selected_rows=[],
-        tooltip_delay=0,
-        tooltip_duration=None,
-        css=[{
-            'selector': '.dash-cell div.dash-cell-value',
-            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
-        }],
-        markdown_options={"html": True}
+        style={"height": "700px", "width": "100%"},
     )
 
-# Layout
+def create_job_details_modal():
+    """Create the modal component for displaying job details."""
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Job Details")),
+        dbc.ModalBody(id="job-details-content"),
+        dbc.ModalFooter(
+            dbc.Button("Close", id="close-modal", className="ms-auto", n_clicks=0)
+        ),
+    ], id="job-details-modal", size="lg", is_open=False)
+
+def create_job_details_content(row_data):
+    """Create the content for the job details modal."""
+    return [
+        html.H4(row_data["Job Title"]),
+        html.Hr(),
+        html.Div([
+            html.P([html.Strong("Company: "), row_data["Company Name"]]),
+            html.P([html.Strong("Location: "), row_data["Location"]]),
+            html.P([html.Strong("Work Type: "), row_data["Work Type"]]),
+            html.P([html.Strong("Work Arrangement: "), row_data["Work Arrangement"]]),
+            html.P([html.Strong("Salary Range: "), row_data["Salary Range"]]),
+            html.P([html.Strong("Posting Date: "), row_data["Posting Date"]]),
+        ])
+    ]
+
+# Layout with AG Grid and Modal
 layout = dbc.Container([
     html.H1("Job Finder", className="text-center my-4"),
-    
-    # File status alert
-    html.Div(id="job-data-status"),
-    
-    # Search and filter controls
-    dbc.Row([
-        dbc.Col([
-            dbc.Input(
-                id="job-search-input",
-                type="text",
-                placeholder="Search jobs...",
-                className="mb-3",
-                debounce=True
-            ),
-        ], width=12),
-    ]),
-    
-    # Data table with loading spinner
-    dbc.Spinner(
-        html.Div(id="job-table-container", className="mb-4"),
-        color="primary",
-        type="border",
-        fullscreen=False
-    ),
-    
-    # Pagination controls
-    dbc.Row([
-        dbc.Col([
-            dbc.Row([
-                # Page size selector
-                dbc.Col([
-                    dbc.InputGroup([
-                        dbc.InputGroupText("Page Size"),
-                        dbc.Select(
-                            id="page-size-selector",
-                            options=config.PAGE_SIZE_OPTIONS,
-                            value=str(config.DEFAULT_PAGE_SIZE),
-                            className="flex-grow-0",
-                            style={"width": "120px"}
-                        ),
-                    ], className="mb-3 justify-content-center"),
-                ], width="auto", className="me-3"),
-                
-                # Navigation buttons
-                dbc.Col([
-                    dbc.InputGroup([
-                        dbc.Button("Previous", id="previous-page-button", color="secondary", outline=True),
-                        dbc.InputGroupText(id="page-indicator", children="Page 1"),
-                        dbc.Button("Next", id="next-page-button", color="secondary", outline=True),
-                    ], className="mb-3 justify-content-center"),
-                ], width="auto"),
-            ], justify="center"),
-        ], width=12, className="text-center"),
-    ]),
-    
-    # Store components for state management
-    dcc.Store(id="job-data-store"),
-    dcc.Store(id="page-store", data={"current_page": 0, "page_size": config.DEFAULT_PAGE_SIZE}),
-    
+    create_job_grid(),
+    create_job_details_modal()
 ], fluid=True)
 
-# Callbacks
 @callback(
-    Output("job-data-store", "data"),
-    Output("job-data-status", "children"),
-    Input("job-search-input", "value"),
-    prevent_initial_call=False
+    Output("job-details-modal", "is_open"),
+    Output("job-details-content", "children"),
+    Input("job-grid", "cellRendererData"),
+    Input("close-modal", "n_clicks"),
+    State("job-details-modal", "is_open"),
 )
-def load_and_filter_data(search_term: Optional[str]) -> Tuple[Optional[List[Dict[str, Any]]], html.Div]:
-    """Load and filter job data based on search term."""
-    df = load_job_data()
-    
-    if "Error" in df.columns:
-        return None, dbc.Alert(df["Error"].iloc[0], color="danger", className="mt-3")
-    
-    if search_term:
-        df_str = df.astype(str)
-        mask = df_str.apply(lambda x: x.str.contains(search_term, case=False, na=False)).any(axis=1)
-        filtered_df = df[mask]
-        
-        if len(filtered_df) == 0:
-            return df.to_dict('records'), dbc.Alert(
-                f"No results found for '{search_term}'. Showing all {len(df)} jobs instead.", 
-                color="warning", 
-                className="mt-3"
-            )
-        
-        return filtered_df.to_dict('records'), dbc.Alert(
-            f"Found {len(filtered_df)} jobs matching '{search_term}'", 
-            color="success", 
-            className="mt-3"
-        )
-    
-    return df.to_dict('records'), dbc.Alert(
-        f"Loaded {len(df)} jobs. Use the search box to filter results.", 
-        color="info", 
-        className="mt-3",
-        dismissable=True
-    )
-
-@callback(
-    Output("page-store", "data"),
-    [
-        Input("next-page-button", "n_clicks"),
-        Input("previous-page-button", "n_clicks"),
-        Input("page-size-selector", "value"),
-        Input("job-data-store", "data")
-    ],
-    State("page-store", "data"),
-    prevent_initial_call=True
-)
-def update_pagination(
-    next_clicks: Optional[int],
-    prev_clicks: Optional[int],
-    page_size: str,
-    job_data: Optional[List[Dict[str, Any]]],
-    current_state: Optional[Dict[str, int]]
-) -> Dict[str, int]:
-    """Update pagination state based on user interactions."""
+def toggle_modal(cell_data, n_clicks, is_open):
+    """Handle modal interactions for displaying job details."""
     ctx = dash.callback_context
-    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    if not ctx.triggered:
+        return is_open, []
     
-    if current_state is None:
-        current_state = {"current_page": 0, "page_size": config.DEFAULT_PAGE_SIZE}
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
-    page_size = int(page_size)
-    if page_size != current_state["page_size"]:
-        return {"current_page": 0, "page_size": page_size}
+    # Handle modal close
+    if trigger_id == "close-modal":
+        return False, []
     
-    if not job_data:
-        return current_state
+    # Handle job details view
+    if trigger_id == "job-grid" and cell_data:
+        if cell_data.get("value", {}).get("colId") == "details":
+            row_data = cell_data.get("value", {}).get("data", {})
+            if row_data:
+                return True, create_job_details_content(row_data)
     
-    max_page = max(0, (len(job_data) - 1) // page_size)
-    
-    if trigger_id == "next-page-button" and current_state["current_page"] < max_page:
-        current_state["current_page"] += 1
-    elif trigger_id == "previous-page-button" and current_state["current_page"] > 0:
-        current_state["current_page"] -= 1
-    elif trigger_id == "job-data-store":
-        current_state["current_page"] = 0
-    
-    return current_state
-
-@callback(
-    Output("page-indicator", "children"),
-    Input("page-store", "data"),
-    Input("job-data-store", "data")
-)
-def update_page_indicator(
-    page_state: Optional[Dict[str, int]],
-    job_data: Optional[List[Dict[str, Any]]]
-) -> str:
-    """Update the page indicator text."""
-    if not job_data or not page_state:
-        return "Page 1"
-    
-    current_page = page_state["current_page"] + 1
-    total_pages = max(1, (len(job_data) - 1) // page_state["page_size"] + 1)
-    
-    return f"Page {current_page} of {total_pages}"
-
-@callback(
-    Output("job-table-container", "children"),
-    Input("page-store", "data"),
-    Input("job-data-store", "data")
-)
-def update_data_table(
-    page_state: Optional[Dict[str, int]],
-    job_data: Optional[List[Dict[str, Any]]]
-) -> html.Div:
-    """Update the data table with paginated data."""
-    if not job_data or not page_state:
-        return html.Div("No data available. Please run the job preprocessing script first.")
-    
-    if len(job_data) == 0:
-        return html.Div("No jobs found matching your search criteria.")
-    
-    page_size = page_state["page_size"]
-    current_page = page_state["current_page"]
-    
-    start_idx = current_page * page_size
-    end_idx = min(start_idx + page_size, len(job_data))
-    page_data = job_data[start_idx:end_idx]
-    
-    if not page_data:
-        return html.Div("No jobs available on this page. Try going back to page 1.")
-    
-    return create_data_table(page_data)
+    return is_open, []
