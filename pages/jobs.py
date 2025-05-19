@@ -23,7 +23,7 @@ def load_job_data():
                 "Job Id", "Role Id", "Job Title", "Work Arrangement", "Work Type", 
                 "Posting Date", "Salary Range", "Company Name", "Advertiser Name", 
                 "Location", "Job Teaser", "Highlights", "Highlight Point 1", 
-                "Highlight Point 2", "Highlight Point 3", "Job Description"
+                "Highlight Point 2", "Highlight Point 3", "Job Description", "Job Url"
             ]
             # Only keep columns that exist in the DataFrame
             columns = [col for col in columns if col in df.columns]
@@ -99,7 +99,7 @@ layout = dbc.Container([
     
     # Store components for state management
     dcc.Store(id="job-data-store"),
-    dcc.Store(id="page-store", data={"current_page": 0, "page_size": 10, "filtered_indices": None}),
+    dcc.Store(id="page-store", data={"current_page": 0, "page_size": 10}),
     
     # Loading for job data
     dbc.Spinner(html.Div(id="loading-job-data"), color="primary", type="border", fullscreen=False),
@@ -168,7 +168,7 @@ def update_pagination(next_clicks, prev_clicks, page_size, job_data, current_sta
     
     # Initialize state if it doesn't exist
     if current_state is None:
-        current_state = {"current_page": 0, "page_size": 10, "filtered_indices": None}
+        current_state = {"current_page": 0, "page_size": 10}
     
     # Update page size if changed
     page_size = int(page_size)
@@ -179,7 +179,7 @@ def update_pagination(next_clicks, prev_clicks, page_size, job_data, current_sta
     
     # Handle navigation buttons
     if trigger_id == "next-page-button" and job_data:
-        max_page = max(0, len(job_data) // page_size)
+        max_page = max(0, (len(job_data) - 1) // page_size)
         if current_state["current_page"] < max_page:
             current_state["current_page"] += 1
     
@@ -218,6 +218,9 @@ def update_data_table(page_state, job_data):
     if not job_data or not page_state:
         return html.Div("No data available. Please run the job preprocessing script first.")
     
+    if len(job_data) == 0:
+        return html.Div("No jobs found matching your search criteria.")
+    
     page_size = page_state["page_size"]
     current_page = page_state["current_page"]
     
@@ -227,6 +230,10 @@ def update_data_table(page_state, job_data):
     
     # Get data for current page
     page_data = job_data[start_idx:end_idx]
+    
+    # Check if page_data is empty (this could happen if pagination state is inconsistent)
+    if not page_data:
+        return html.Div("No jobs available on this page. Try going back to page 1.")
     
     # Display shorter preview versions of certain columns
     display_columns = [
