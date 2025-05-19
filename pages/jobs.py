@@ -59,100 +59,9 @@ def load_job_data() -> pd.DataFrame:
         return pd.DataFrame({"Error": [f"Failed to load data: {str(e)}"]})
 
 # Component Functions
-def create_job_modal_content(job: Dict[str, Any]) -> List[html.Div]:
-    """Create the content for the job details modal."""
-    if not job:
-        return [html.Div("No job data available", className="text-center p-4")]
-    
-    def get_job_value(key: str, default: str = "N/A") -> str:
-        value = job.get(key, default)
-        return value if value and value != "nan" else default
-    
-    return [
-        dbc.Row([
-            dbc.Col([
-                html.H3(get_job_value("Job Title"), className="mb-3"),
-                html.H5(get_job_value("Company Name"), className="text-muted mb-4"),
-            ], width=12),
-        ]),
-        
-        dbc.Row([
-            dbc.Col([
-                html.Div([
-                    html.H5("Job Details", className="mb-3"),
-                    dbc.ListGroup([
-                        dbc.ListGroupItem([
-                            html.Strong("Location: "),
-                            get_job_value("Location")
-                        ]),
-                        dbc.ListGroupItem([
-                            html.Strong("Work Type: "),
-                            get_job_value("Work Type")
-                        ]),
-                        dbc.ListGroupItem([
-                            html.Strong("Work Arrangement: "),
-                            get_job_value("Work Arrangement")
-                        ]),
-                        dbc.ListGroupItem([
-                            html.Strong("Posted: "),
-                            get_job_value("Posting Date")
-                        ]),
-                    ], flush=True),
-                ], className="mb-4"),
-            ], md=6),
-            
-            dbc.Col([
-                html.Div([
-                    html.H5("Highlights", className="mb-3"),
-                    dbc.ListGroup([
-                        dbc.ListGroupItem(get_job_value("Highlight Point 1")) if get_job_value("Highlight Point 1") != "N/A" else None,
-                        dbc.ListGroupItem(get_job_value("Highlight Point 2")) if get_job_value("Highlight Point 2") != "N/A" else None,
-                        dbc.ListGroupItem(get_job_value("Highlight Point 3")) if get_job_value("Highlight Point 3") != "N/A" else None,
-                    ], flush=True),
-                ], className="mb-4"),
-            ], md=6),
-        ], className="mb-4"),
-        
-        dbc.Row([
-            dbc.Col([
-                html.Div([
-                    html.H5("Job Description", className="mb-3"),
-                    html.Div([
-                        dcc.Markdown(
-                            children=get_job_value("Job Description", "No description available."),
-                            dangerously_allow_html=True
-                        )
-                    ], style={
-                        "maxHeight": "400px",
-                        "overflowY": "auto",
-                        "padding": "15px",
-                        "border": "1px solid #dee2e6",
-                        "borderRadius": "4px",
-                        "backgroundColor": "#f8f9fa"
-                    }),
-                ], className="mb-4"),
-            ], width=12),
-        ]),
-        
-        dbc.Row([
-            dbc.Col([
-                html.Div([
-                    html.Hr(),
-                    html.A(
-                        "View on Seek",
-                        href=get_job_value("Job Url", "#"),
-                        target="_blank",
-                        rel="noopener noreferrer",
-                        className="btn btn-primary mt-3"
-                    ) if get_job_value("Job Url") != "N/A" else None,
-                ], className="text-center"),
-            ], width=12),
-        ]),
-    ]
-
 def create_action_links(job_id: str, job_url: str) -> str:
     """Create action links for a job row as HTML string."""
-    return f'<a href="#{job_id}" class="me-2">View Details</a> | <a href="{job_url}" target="_blank" rel="noopener noreferrer" class="ms-2">View on Seek</a>'
+    return f'<a href="{job_url}" target="_blank" rel="noopener noreferrer">View on Seek</a>'
 
 def create_data_table(page_data: List[Dict[str, Any]]) -> dash_table.DataTable:
     """Create the data table component."""
@@ -212,9 +121,6 @@ def create_data_table(page_data: List[Dict[str, Any]]) -> dash_table.DataTable:
 layout = dbc.Container([
     html.H1("Job Finder", className="text-center my-4"),
     
-    # Hidden components for modal trigger
-    dcc.Store(id="selected-job-id", data=None),
-    
     # File status alert
     html.Div(id="job-data-status"),
     
@@ -268,15 +174,6 @@ layout = dbc.Container([
             ], justify="center"),
         ], width=12, className="text-center"),
     ]),
-    
-    # Job details modal
-    dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Job Details")),
-        dbc.ModalBody(id="job-modal-content"),
-        dbc.ModalFooter(
-            dbc.Button("Close", id="close-job-modal", className="ms-auto", n_clicks=0)
-        ),
-    ], id="job-detail-modal", size="xl", is_open=False),
     
     # Store components for state management
     dcc.Store(id="job-data-store"),
@@ -411,47 +308,3 @@ def update_data_table(
         return html.Div("No jobs available on this page. Try going back to page 1.")
     
     return create_data_table(page_data)
-
-@callback(
-    Output("job-detail-modal", "is_open"),
-    Output("job-modal-content", "children"),
-    Output("selected-job-id", "data"),
-    Input("job-listing-table", "active_cell"),
-    Input("close-job-modal", "n_clicks"),
-    State("job-data-store", "data"),
-    State("job-detail-modal", "is_open"),
-    State("page-store", "data"),
-    prevent_initial_call=True
-)
-def handle_modal_interaction(
-    active_cell: Optional[Dict[str, Any]],
-    close_clicks: Optional[int],
-    job_data: Optional[List[Dict[str, Any]]],
-    is_open: bool,
-    page_state: Optional[Dict[str, int]]
-) -> Tuple[bool, Any, Any]:
-    """Handle modal interactions based on table cell clicks."""
-    ctx = dash.callback_context
-    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    
-    if trigger_id == "close-job-modal":
-        return False, dash.no_update, dash.no_update
-    
-    if trigger_id == "job-listing-table" and active_cell:
-        if not job_data:
-            return False, html.Div("No data available"), dash.no_update
-        
-        row_idx = active_cell["row"]
-        page_size = page_state.get("page_size", 10)
-        current_page = page_state.get("current_page", 0)
-        
-        start_idx = current_page * page_size
-        actual_idx = start_idx + row_idx
-        
-        if actual_idx >= len(job_data):
-            return False, html.Div("Invalid job selection"), dash.no_update
-        
-        job = job_data[actual_idx]
-        return True, create_job_modal_content(job), job["Job Id"]
-    
-    return is_open, dash.no_update, dash.no_update
