@@ -3,6 +3,7 @@ from dash import html, dcc, callback, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
 import os
+from datetime import datetime
 
 # Register the page
 dash.register_page(
@@ -27,6 +28,11 @@ def load_job_data():
             ]
             # Only keep columns that exist in the DataFrame
             columns = [col for col in columns if col in df.columns]
+            
+            # Format dates if they exist
+            if "Posting Date" in df.columns:
+                df["Posting Date"] = pd.to_datetime(df["Posting Date"]).dt.strftime("%Y-%m-%d")
+            
             return df[columns]
         except Exception as e:
             print(f"Error loading parquet file: {e}")
@@ -49,18 +55,21 @@ layout = dbc.Container([
                 id="job-search-input",
                 type="text",
                 placeholder="Search jobs...",
-                className="mb-3"
+                className="mb-3",
+                debounce=True  # Enable debouncing for better performance
             ),
-        ], width=8),
-        dbc.Col([
-            dbc.Button("Search", id="job-search-button", color="primary", className="mb-3"),
-        ], width=4),
+        ], width=12),
     ]),
     
-    # Data table
-    html.Div(id="job-table-container", className="mb-4"),
+    # Data table with loading spinner
+    dbc.Spinner(
+        html.Div(id="job-table-container", className="mb-4"),
+        color="primary",
+        type="border",
+        fullscreen=False
+    ),
     
-    # Pagination controls (moved below the table and centered)
+    # Pagination controls
     dbc.Row([
         dbc.Col([
             dbc.Row([
@@ -91,8 +100,8 @@ layout = dbc.Container([
                         dbc.Button("Next", id="next-page-button", color="secondary", outline=True),
                     ], className="mb-3 justify-content-center"),
                 ], width="auto"),
-            ], justify="center"),  # Center the row contents
-        ], width=12, className="text-center"),  # Use full width and center text
+            ], justify="center"),
+        ], width=12, className="text-center"),
     ]),
     
     # Job details modal
@@ -108,25 +117,20 @@ layout = dbc.Container([
     dcc.Store(id="job-data-store"),
     dcc.Store(id="page-store", data={"current_page": 0, "page_size": 10}),
     
-    # Loading for job data
-    dbc.Spinner(html.Div(id="loading-job-data"), color="primary", type="border", fullscreen=False),
-    
 ], fluid=True)
 
 # Callback to load and store job data
 @callback(
     Output("job-data-store", "data"),
     Output("job-data-status", "children"),
-    Output("loading-job-data", "children"),
-    Input("job-search-button", "n_clicks"),
-    State("job-search-input", "value"),
+    Input("job-search-input", "value"),
     prevent_initial_call=False
 )
-def load_and_filter_data(n_clicks, search_term):
+def load_and_filter_data(search_term):
     df = load_job_data()
     
     if "Error" in df.columns:
-        return None, dbc.Alert(df["Error"].iloc[0], color="danger", className="mt-3"), ""
+        return None, dbc.Alert(df["Error"].iloc[0], color="danger", className="mt-3")
     
     # Filter data if search term is provided
     if search_term:
@@ -141,20 +145,20 @@ def load_and_filter_data(n_clicks, search_term):
                 f"No results found for '{search_term}'. Showing all {len(df)} jobs instead.", 
                 color="warning", 
                 className="mt-3"
-            ), ""
+            )
         
         return filtered_df.to_dict('records'), dbc.Alert(
             f"Found {len(filtered_df)} jobs matching '{search_term}'", 
             color="success", 
             className="mt-3"
-        ), ""
+        )
     
     return df.to_dict('records'), dbc.Alert(
         f"Loaded {len(df)} jobs. Use the search box to filter results.", 
         color="info", 
         className="mt-3",
         dismissable=True
-    ), ""
+    )
 
 # Callback to update pagination state
 @callback(
@@ -253,6 +257,17 @@ def update_data_table(page_state, job_data):
     # Only keep columns that are in our display list and in the available data
     display_columns = [col for col in display_columns if col in available_columns]
     
+    # Define column formatting
+    column_formats = {
+        "Job Title": "25%",
+        "Company Name": "20%",
+        "Location": "15%",
+        "Work Type": "10%",
+        "Work Arrangement": "10%",
+        "Posting Date": "10%",
+        "Salary Range": "10%",
+    }
+    
     # Create the data table
     return dash_table.DataTable(
         id='job-listing-table',
@@ -264,8 +279,14 @@ def update_data_table(page_state, job_data):
             'padding': '8px',
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
-            'maxWidth': 0,  # Force equal column width
+            'whiteSpace': 'nowrap',
         },
+        style_cell_conditional=[
+            {
+                'if': {'column_id': col_id},
+                'width': width
+            } for col_id, width in column_formats.items() if col_id in display_columns
+        ],
         style_header={
             'backgroundColor': 'rgb(230, 230, 230)',
             'fontWeight': 'bold',
@@ -275,11 +296,27 @@ def update_data_table(page_state, job_data):
             {
                 'if': {'row_index': 'odd'},
                 'backgroundColor': 'rgb(248, 248, 248)'
+            },
+            {
+                'if': {'state': 'active'},
+                'backgroundColor': 'rgb(230, 230, 230)',
+                'border': '1px solid rgb(0, 0, 0)'
+            },
+            {
+                'if': {'state': 'selected'},
+                'backgroundColor': 'rgb(200, 200, 200)',
+                'border': '1px solid rgb(0, 0, 0)'
             }
         ],
         page_action='none',  # We're handling pagination ourselves
         row_selectable='single',
         selected_rows=[],
+        tooltip_delay=0,
+        tooltip_duration=None,
+        css=[{
+            'selector': '.dash-cell div.dash-cell-value',
+            'rule': 'display: inline; white-space: inherit; overflow: inherit; text-overflow: inherit;'
+        }]
     )
 
 # Callback to open job details modal when a row is selected
@@ -317,45 +354,80 @@ def toggle_job_modal(selected_rows, close_clicks, job_data, page_state, is_open)
         # Get the selected job data
         job = job_data[row_idx]
         
-        # Create the modal content
+        # Create the modal content with better formatting
         content = [
-            html.H3(job.get("Job Title", "No Title"), className="mb-3"),
+            dbc.Row([
+                dbc.Col([
+                    html.H3(job.get("Job Title", "No Title"), className="mb-3"),
+                    html.H5(job.get("Company Name", "N/A"), className="text-muted mb-4"),
+                ], width=12),
+            ]),
             
             dbc.Row([
                 dbc.Col([
-                    html.H5("Job Details", className="mb-2"),
-                    html.P([html.Strong("Company: "), job.get("Company Name", "N/A")]),
-                    html.P([html.Strong("Location: "), job.get("Location", "N/A")]),
-                    html.P([html.Strong("Work Type: "), job.get("Work Type", "N/A")]),
-                    html.P([html.Strong("Work Arrangement: "), job.get("Work Arrangement", "N/A")]),
-                    html.P([html.Strong("Posted: "), job.get("Posting Date", "N/A")]),
-                    html.P([html.Strong("Salary: "), job.get("Salary Range", "N/A")]),
+                    html.Div([
+                        html.H5("Job Details", className="mb-3"),
+                        dbc.ListGroup([
+                            dbc.ListGroupItem([
+                                html.Strong("Location: "),
+                                job.get("Location", "N/A")
+                            ]),
+                            dbc.ListGroupItem([
+                                html.Strong("Work Type: "),
+                                job.get("Work Type", "N/A")
+                            ]),
+                            dbc.ListGroupItem([
+                                html.Strong("Work Arrangement: "),
+                                job.get("Work Arrangement", "N/A")
+                            ]),
+                            dbc.ListGroupItem([
+                                html.Strong("Posted: "),
+                                job.get("Posting Date", "N/A")
+                            ]),
+                            dbc.ListGroupItem([
+                                html.Strong("Salary: "),
+                                job.get("Salary Range", "N/A")
+                            ]),
+                        ], flush=True),
+                    ], className="mb-4"),
                 ], md=6),
                 
                 dbc.Col([
-                    html.H5("Highlights", className="mb-2"),
-                    html.Ul([
-                        html.Li(job.get("Highlight Point 1", "")) if job.get("Highlight Point 1") else None,
-                        html.Li(job.get("Highlight Point 2", "")) if job.get("Highlight Point 2") else None,
-                        html.Li(job.get("Highlight Point 3", "")) if job.get("Highlight Point 3") else None,
-                    ]),
+                    html.Div([
+                        html.H5("Highlights", className="mb-3"),
+                        dbc.ListGroup([
+                            dbc.ListGroupItem(job.get("Highlight Point 1", "")) if job.get("Highlight Point 1") else None,
+                            dbc.ListGroupItem(job.get("Highlight Point 2", "")) if job.get("Highlight Point 2") else None,
+                            dbc.ListGroupItem(job.get("Highlight Point 3", "")) if job.get("Highlight Point 3") else None,
+                        ], flush=True),
+                    ], className="mb-4"),
                 ], md=6),
             ], className="mb-4"),
             
-            html.H5("Job Description", className="mb-2"),
-            html.Div([
-                dcc.Markdown(
-                    children=job.get("Job Description", "No description available."),  # Insert the raw HTML content
-                    dangerously_allow_html=True  # Allow rendering raw HTML
-                )
-            ], style={"maxHeight": "400px", "overflowY": "auto"}),
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        html.H5("Job Description", className="mb-3"),
+                        html.Div([
+                            dcc.Markdown(
+                                children=job.get("Job Description", "No description available."),
+                                dangerously_allow_html=True
+                            )
+                        ], style={"maxHeight": "400px", "overflowY": "auto", "padding": "15px", "border": "1px solid #dee2e6", "borderRadius": "4px"}),
+                    ], className="mb-4"),
+                ], width=12),
+            ]),
             
             # Job URL if available
-            html.Div([
-                html.Hr(),
-                html.A("View on Seek", href=job.get("Job Url", "#"), target="_blank",
-                      className="btn btn-primary mt-3") if "Job Url" in job else None,
-            ], className="mt-3"),
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        html.Hr(),
+                        html.A("View on Seek", href=job.get("Job Url", "#"), target="_blank",
+                              className="btn btn-primary mt-3") if "Job Url" in job else None,
+                    ], className="text-center"),
+                ], width=12),
+            ]),
         ]
         
         return True, content

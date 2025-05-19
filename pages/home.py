@@ -1,6 +1,12 @@
-import dash
+"""
+Home page for the Seeklyzer application.
+This is the landing page that introduces users to the application's features.
+"""
+
+from typing import List
 from dash import html
 import dash_bootstrap_components as dbc
+import dash
 
 # Register the page
 dash.register_page(
@@ -10,12 +16,97 @@ dash.register_page(
     name='Home'
 )
 
-# Blank layout
-layout = dbc.Container([
-    html.H1("Home", className="text-center my-4"),
-    dbc.Alert(
-        "This page is currently under development. Please use the Resume Tool.",
-        color="secondary",
-        className="text-center"
+def create_feature_card(title: str, description: str, icon: str, href: str) -> dbc.Card:
+    """
+    Create a feature card for the home page.
+    
+    Args:
+        title (str): The title of the feature
+        description (str): Description of the feature
+        icon (str): Font Awesome icon class
+        href (str): Link to the feature page
+        
+    Returns:
+        dbc.Card: A Bootstrap card component
+    """
+    return dbc.Card(
+        dbc.CardBody([
+            html.I(className=f"fas {icon} fa-3x mb-3 text-primary"),
+            html.H4(title, className="card-title"),
+            html.P(description, className="card-text"),
+            dbc.Button("Learn More", href=href, color="primary", className="mt-3")
+        ]),
+        className="h-100 text-center"
     )
-], fluid=True)
+
+# Define the features
+FEATURES: List[dict] = [
+    {
+        "title": "Resume Analysis",
+        "description": "Upload your resume and get instant feedback on how to improve it for better job matches.",
+        "icon": "fa-file-alt",
+        "href": "/resume"
+    },
+    {
+        "title": "Job Finder",
+        "description": "Search and filter through job listings to find positions that match your skills and preferences.",
+        "icon": "fa-search",
+        "href": "/jobs"
+    },
+    {
+        "title": "Analytics",
+        "description": "View insights and trends in the job market to make informed career decisions.",
+        "icon": "fa-chart-line",
+        "href": "/analytics"
+    }
+]
+
+# Create the layout
+layout = dbc.Container([
+    # Hero section
+    dbc.Row([
+        dbc.Col([
+            html.H1("Welcome to Seeklyzer", className="text-center display-4 mb-4"),
+            html.P(
+                "Your intelligent job search companion. Find roles that truly fit your skills and aspirations.",
+                className="text-center lead mb-5"
+            )
+        ], width=12)
+    ]),
+    
+    # Features section
+    dbc.Row([
+        dbc.Col([
+            html.H2("Features", className="text-center mb-4")
+        ], width=12)
+    ]),
+    
+    # Feature cards
+    dbc.Row([
+        dbc.Col(
+            create_feature_card(**feature),
+            width=12,
+            md=4,
+            className="mb-4"
+        ) for feature in FEATURES
+    ]),
+    
+    # Call to action
+    dbc.Row([
+        dbc.Col([
+            html.Hr(className="my-5"),
+            html.H3("Ready to Start?", className="text-center mb-4"),
+            html.P(
+                "Begin your journey to finding the perfect job match.",
+                className="text-center mb-4"
+            ),
+            dbc.Button(
+                "Get Started",
+                href="/resume",
+                color="primary",
+                size="lg",
+                className="d-block mx-auto"
+            )
+        ], width=12)
+    ])
+], fluid=True, className="py-5")
