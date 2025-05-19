@@ -35,14 +35,87 @@ def create_job_grid():
     
     # Filter for specific columns
     columns_to_show = [
-        'Job Id', 'Role Id', 'Job Title', 'Work Arrangement', 
-        'Work Type', 'Posting Date', 'Salary Range', 
-        'Company Name', 'Advertiser Name', 'Location'
+        'Job Id', 'Job Title', 'Work Arrangement', 
+        'Work Type', 'Posting Date', 'Advertiser Name', 'Location'
     ]
     df = df[columns_to_show]
     
     # Define column definitions
-    columnDefs = [{"field": col, "filter": True, "sortable": True} for col in df.columns]
+    columnDefs = []
+    for col in df.columns:
+        if col == 'Advertiser Name':
+            columnDefs.append({
+                "field": col,
+                "headerName": "Company Name",
+                "filter": True,
+                "sortable": True,
+                "width": 200,
+                "minWidth": 150,
+                "flex": 1
+            })
+        elif col == 'Job Title':
+            columnDefs.append({
+                "field": col,
+                "filter": True,
+                "sortable": True,
+                "width": 270,
+                "minWidth": 200,
+                "flex": 2
+            })
+        elif col == 'Location':
+            columnDefs.append({
+                "field": col,
+                "filter": True,
+                "sortable": True,
+                "width": 150,
+                "minWidth": 120,
+                "flex": 1
+            })
+        elif col == 'Work Type':
+            columnDefs.append({
+                "field": col,
+                "filter": True,
+                "sortable": True,
+                "width": 150,
+                "minWidth": 150,
+                "flex": 0
+            })
+        elif col == 'Work Arrangement':
+            columnDefs.append({
+                "field": col,
+                "filter": True,
+                "sortable": True,
+                "width": 180,
+                "minWidth": 180,
+                "flex": 0
+            })
+        elif col == 'Posting Date':
+            columnDefs.append({
+                "field": col,
+                "filter": True,
+                "sortable": True,
+                "width": 200,
+                "minWidth": 200,
+                "flex": 1
+            })
+        elif col == 'Job Id':
+            columnDefs.append({
+                "field": col,
+                "filter": True,
+                "sortable": True,
+                "width": 100,
+                "minWidth": 80,
+                "flex": 0
+            })
+        else:
+            columnDefs.append({
+                "field": col,
+                "filter": True,
+                "sortable": True,
+                "width": 150,
+                "minWidth": 100,
+                "flex": 1
+            })
     
     # Add action column with both View on Seek and View Details buttons
     columnDefs.append({
@@ -51,10 +124,9 @@ def create_job_grid():
         "sortable": False,
         "filter": False,
         "cellRenderer": "ActionButtons",
-        "width": "auto",
-        "marginLeft": "10px",
-        "marginRight": "10px",
-        "flex": 0
+        "width": 200,
+        "minWidth": 200,
+        "flex": 1
     })
     
     return AgGrid(
@@ -73,8 +145,22 @@ def create_job_grid():
             "headerHeight": 48,
             "pagination": True,
             "paginationPageSize": 20,
+            "domLayout": "autoHeight",
+            "animateRows": True,
+            "rowSelection": "single",
+            "enableCellTextSelection": True,
+            "ensureDomOrder": True,
+            "suppressCellFocus": False,
+            "headerClass": "ag-header-cell-custom",
+            "rowClass": "ag-row-custom"
         },
-        style={"height": "700px", "width": "100%"},
+        style={
+            "height": "700px",
+            "width": "100%",
+            "fontFamily": "Arial, sans-serif",
+            "fontSize": "14px"
+        },
+        className="ag-theme-alpine",
     )
 
 def create_job_details_modal():
@@ -89,16 +175,38 @@ def create_job_details_modal():
 
 def create_job_details_content(row_data):
     """Create the content for the job details modal."""
+    # Get fresh data from the DataFrame
+    df = load_job_data()
+    job_id = row_data["Job Id"]
+    job_data = df[df["Job Id"] == job_id].iloc[0]
+    
     return [
-        html.H4(row_data["Job Title"]),
+        html.H4(job_data["Job Title"]),
         html.Hr(),
         html.Div([
-            html.P([html.Strong("Company: "), row_data["Company Name"]]),
-            html.P([html.Strong("Location: "), row_data["Location"]]),
-            html.P([html.Strong("Work Type: "), row_data["Work Type"]]),
-            html.P([html.Strong("Work Arrangement: "), row_data["Work Arrangement"]]),
-            html.P([html.Strong("Salary Range: "), row_data["Salary Range"]]),
-            html.P([html.Strong("Posting Date: "), row_data["Posting Date"]]),
+            html.P([html.Strong("Job ID: "), str(job_data["Job Id"])]),
+            html.P([html.Strong("Role ID: "), str(job_data["Role Id"])]),
+            html.P([html.Strong("Company: "), job_data["Company Name"]]),
+            html.P([html.Strong("Advertiser: "), job_data["Advertiser Name"]]),
+            html.P([html.Strong("Location: "), job_data["Location"]]),
+            html.P([html.Strong("Work Type: "), job_data["Work Type"]]),
+            html.P([html.Strong("Work Arrangement: "), job_data["Work Arrangement"]]),
+            html.P([html.Strong("Posting Date: "), job_data["Posting Date"]]),
+            html.P([html.Strong("Salary Range: "), job_data["Salary Range"]]),
+            html.Hr(),
+            html.H5("Job Teaser"),
+            html.P(job_data["Job Teaser"]),
+            html.Hr(),
+            html.H5("Highlights"),
+            html.P(job_data["Highlights"]),
+            html.Div([
+                html.P([html.Strong("Highlight 1: "), job_data["Highlight Point 1"]]),
+                html.P([html.Strong("Highlight 2: "), job_data["Highlight Point 2"]]),
+                html.P([html.Strong("Highlight 3: "), job_data["Highlight Point 3"]]),
+            ]),
+            html.Hr(),
+            html.H5("Job Description"),
+            html.P(job_data["Job Description"])
         ])
     ]
 
