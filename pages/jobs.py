@@ -341,8 +341,6 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
         "Basic Information": [
             ("Job ID", "Job Id"),
             ("Job Title", "Job Title"),
-            # ("Role ID", "Role Id"),
-            # ("Company", "Company Name"),
             ("Company", "Advertiser Name"),
             ("Location", "Location"),
             ("Work Type", "Work Type"),
@@ -365,6 +363,9 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
     content.append(
         html.H4(job_data["Job Title"], className="mb-4 text-primary")
     )
+    
+    # Create accordion items for each section
+    accordion_items = []
     
     # Iterate through sections
     for section_title, fields in sections.items():
@@ -411,11 +412,24 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
         
         # Only add section if it has content
         if section_content:
-            content.extend([
-                html.Hr(className="my-4"),
-                html.H5(section_title, className="mb-3 text-primary"),
-                html.Div(section_content, className="ms-3")
-            ])
+            accordion_items.append(
+                dbc.AccordionItem(
+                    section_content,
+                    title=section_title,
+                    item_id=f"section-{section_title.lower().replace(' ', '-')}",
+                    className="border-0"
+                )
+            )
+    
+    # Create the accordion with all items
+    content.append(
+        dbc.Accordion(
+            accordion_items,
+            active_item=[f"section-{title.lower().replace(' ', '-')}" for title in sections.keys()],
+            className="mt-3",
+            always_open=True
+        )
+    )
     
     return content
 

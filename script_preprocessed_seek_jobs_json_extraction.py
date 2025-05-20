@@ -18,54 +18,115 @@ if not api_key:
 
 
 def extract_job_description(job_details: str) -> dict:
-    """
-    Extract structured data from a job description using ChatXAI.
-    
-    Args:
-        job_details (str): The job description text.
-        
-    Returns:
-        dict: Extracted structured data in JSON format.
-    """
     print(f"Processing job description ({len(job_details)} characters)...")
     
     # Initialize ChatXAI
     chat_xai = ChatXAI(api_key=api_key, model="grok-3-mini-beta", temperature=0, max_tokens=4096)
     print("ChatXAI initialized with grok-3-mini-beta model")
+    
+    system_prompt = "You are an assistant that formats job descriptions in a structured way."
+    human_prompt = f"""
 
-    # Create system and human messages with the JSON extraction prompt
-    messages = [
-        ("system", "You are an assistant that extracts structured data from job descriptions in JSON format."),
-        ("human", f"""
-        Analyze the job description below and extract the following details in a structured JSON format. Use a step-by-step reasoning process to ensure accuracy.
+    You are an expert in analyzing job descriptions (JDs) for IT roles to support recruitment. Your task is to extract and summarize three critical sections from a provided IT job description: **Key Responsibilities / Duties**, **Essential Qualifications & Experience**, and **Skills & Competencies**. These sections will be used to evaluate and shortlist candidates based on their resumes in a separate process. For each extracted bullet point, provide instructions for how it can be assessed using resume content, without assigning scores. Follow the instructions below to ensure accurate, concise, and practical extraction, focusing on IT-specific context as commonly seen in real-world JDs:
 
-        Details to extract:
-        - Job title
-        - Skills (required and preferred, as lists of concise technical skill names)
-        - Experience (years required, list of responsibilities)
-        - Education (degree and field)
-        - Certifications (list of required certifications)
-        - Other requirements (e.g., location, soft skills)
-         
-        For the skills section:
-        - Extract only specific technical skills, programming languages, frameworks, tools, platforms, and technologies (e.g., 'Python', 'AWS', 'Docker').
-        - List each skill as a concise string, splitting combined skills into individual items (e.g., 'Python, FastAPI, ORM' becomes ['Python', 'FastAPI', 'ORM']).
-        - Exclude non-technical skills (e.g., 'problem-solving', 'teamwork', 'Agile/Scrum') and descriptive phrases (e.g., 'debugging and improving performance issues').
-        - Categorize skills as 'required' or 'preferred' based on the job description's explicit sections.
+    1. **Key Responsibilities / Duties**
 
-        Job Description:
-        {job_details}
+    - Extract primary day-to-day IT tasks (e.g., developing software, managing networks, ensuring system security).
+        - Provide assessment instructions to review resume content for relevant experience.
+    - Include responsibilities with clear outcomes or deliverables (e.g., "deploy applications to production" or "reduce downtime by 10%").
+        - Provide assessment instructions to identify related achievements in the resume.
+    - Summarize as a list of tuples, each formatted as ((Bullet Point: [text]), (Assessment Instructions: [text])).
 
-        Output only the JSON object:
+    2. **Essential Qualifications & Experience**
+
+    - Identify all listed qualifications and experience, including:
+        - Required and preferred degrees or certifications (e.g., "Bachelor's in Computer Science" or "AWS Certified Solutions Architect preferred").
+        - Provide assessment instructions to verify qualifications in the resume.
+        - Minimum years of relevant IT experience, including any preferred experience levels (e.g., "2+ years in cloud administration, 5+ years preferred").
+        - Provide assessment instructions to check relevant experience duration.
+        - Specific industry or technical expertise, required or preferred (e.g., "experience with HIPAA-compliant systems" or "familiarity with DevOps practices preferred").
+        - Provide assessment instructions to identify relevant expertise in the resume.
+    - Clearly distinguish between essential and preferred qualifications in the bullet points.
+    - Summarize as a list of tuples, each formatted as ((Bullet Point: [text]), (Assessment Instructions: [text])).
+
+    3. **Skills & Competencies**
+
+    - Extract key IT-relevant skills, including:
+        - **Hard Skills**: Proficiency in specific tools, languages, or platforms (e.g., Java, Azure, Linux).
+        - Provide assessment instructions to check for listed skills in the resume.
+        - **Soft Skills**: Problem-solving, clear communication with technical/non-technical stakeholders, and teamwork (e.g., in Agile environments).
+        - Provide assessment instructions to identify implied skills in resume content.
+    - Summarize as a list of tuples, each formatted as ((Bullet Point: [text]), (Assessment Instructions: [text])), separating hard and soft skills for clarity.
+
+    **Output Format**:
+    Provide the extracted information in JSON format with three keys: `key_responsibilities_duties`, `essential_qualifications_experience`, and `skills_competencies`. Each key maps to a list of objects, where each object represents a tuple with two fields: `bullet_point` (the extracted text) and `assessment_instructions` (the resume-based assessment instructions). If a section is not explicitly stated in the JD, include a single tuple with `bullet_point` as "Not explicitly stated" and appropriate `assessment_instructions` for inferred IT-specific details if feasible. Ensure the tone is professional and the content is concise, reflecting standard IT JD language. Do not add information beyond the JD.
+
+    **Example Output**:
+
+    ```json
+    {{
+    "key_responsibilities_duties": [
         {{
-            "title": str,
-            "skills": {{"required": [str], "preferred": [str]}},
-            "experience": {{"years": float or null, "responsibilities": [str]}},
-            "education": {{"degree": str or null, "field": str or null}},
-            "certifications": [str],
-            "other_requirements": [str]
+        "bullet_point": "Develop and maintain web applications using Node.js",
+        "assessment_instructions": "Review the resume's work experience for roles or projects involving Node.js or similar web development technologies."
+        }},
+        {{
+        "bullet_point": "Ensure network security through regular audits and updates",
+        "assessment_instructions": "Look for achievements in the resume's work experience related to network security or audits, such as implementing security protocols."
         }}
-        """)
+    ],
+    "essential_qualifications_experience": [
+        {{
+        "bullet_point": "Essential: Bachelor's degree in Information Technology or related field",
+        "assessment_instructions": "Check the resume's education section for a Bachelor's degree in IT or a related field."
+        }},
+        {{
+        "bullet_point": "Essential: 3+ years in software development or network administration",
+        "assessment_instructions": "Review the resume's work history to confirm at least 3 years in relevant software development or network administration roles."
+        }},
+        {{
+        "bullet_point": "Preferred: Master's degree in Computer Science",
+        "assessment_instructions": "Check the resume's education section for a Master's degree in Computer Science."
+        }},
+        {{
+        "bullet_point": "Preferred: Experience with cloud-based environments like AWS or Azure",
+        "assessment_instructions": "Look for cloud-related experience (e.g., AWS, Azure) in the resume's work history or projects."
+        }}
+    ],
+    "skills_competencies": [
+        {{
+        "bullet_point": "Hard Skills: Node.js, AWS, firewall management",
+        "assessment_instructions": "Check the resume's skills section or job descriptions for proficiency in Node.js, AWS, and firewall management."
+        }},
+        {{
+        "bullet_point": "Soft Skills: Problem-solving, technical communication, Agile teamwork",
+        "assessment_instructions": "Look for evidence in the resume's job duties or achievements, such as resolving technical issues, communicating with stakeholders, or working in Agile teams."
+        }}
+    ]
+    }}
+    ```
+
+    **Input**:
+    ============JOB DESCRIPTION============
+    {job_details}
+    ============JOB DESCRIPTION============
+
+    **Task**:
+    Analyze the provided IT job description and extract the three sections as described, presenting the output in JSON format with each section as a list of objects containing `bullet_point` and `assessment_instructions` fields. If no job description is provided, respond with a JSON object containing a single key `error` with the value "An IT job description is required to proceed with the extraction."
+
+    **Example Error Output**:
+
+    ```json
+    {{
+    "error": "An IT job description is required to proceed with the extraction"
+    }}
+    ```
+
+    """
+
+    messages = [
+        ("system", system_prompt),
+        ("human", human_prompt)
     ]
 
     # Make the API call directly
@@ -74,17 +135,6 @@ def extract_job_description(job_details: str) -> dict:
     response = chat_xai.invoke(messages)
     processing_time = time.time() - start_time
     print(f"Response received in {processing_time:.2f} seconds")
-    
-    # Try to validate JSON before returning
-    try:
-        # Check if it's already a dict or if it needs parsing
-        if isinstance(response.content, str):
-            # Try to parse the JSON to validate it
-            print(json.dumps(json.loads(response.content), indent=4))
-            print("-" * 50)
-            print("Successfully validated JSON response")
-    except json.JSONDecodeError:
-        print("WARNING: Response may not be valid JSON")
     
     return response.content
 
@@ -133,7 +183,7 @@ def process_job_descriptions():
             return i, None, False
     
     # Use max_workers appropriate for your CPU (e.g., 3-4 for typical systems)
-    max_workers = 16  # Adjust based on your system capabilities
+    max_workers = 4  # Adjust based on your system capabilities
     
     # DEBUG MODE: Process only a subset during development
     debug_mode = False  # Set to False for full processing
@@ -175,7 +225,7 @@ def process_job_descriptions():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("JOB DESCRIPTION EXTRACTION TOOL")
+    print("JOB DETAILS EXTRACTION TOOL")
     print("=" * 50)
     start_time = time.time()
     
