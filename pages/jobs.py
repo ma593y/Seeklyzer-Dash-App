@@ -8,6 +8,8 @@ from dash_ag_grid import AgGrid
 import json
 import os
 from datetime import datetime, timedelta
+import base64
+import io
 
 # Register the page
 dash.register_page(
@@ -445,6 +447,49 @@ layout = dbc.Container([
             ], className="mb-4")
         ], width=12)
     ]),
+    dbc.Row([
+        dbc.Col([
+            html.Div([
+                dbc.Button(
+                    [html.I(className="fas fa-file-upload me-2"), "Upload Resume"],
+                    id="collapse-resume-button",
+                    className="mb-2",
+                    color="primary",
+                    n_clicks=0,
+                    title="Upload Resume"
+                ),
+            ], className="text-center"),
+            dbc.Collapse(
+                dbc.Card(
+                    dbc.CardBody([
+                        dcc.Upload(
+                            id='upload-resume',
+                            children=html.Div([
+                                'Drag and Drop or ',
+                                html.A('Select Resume')
+                            ]),
+                            style={
+                                'width': '100%',
+                                'height': '60px',
+                                'lineHeight': '60px',
+                                'borderWidth': '1px',
+                                'borderStyle': 'dashed',
+                                'borderRadius': '5px',
+                                'textAlign': 'center',
+                                'margin': '10px 0',
+                                'backgroundColor': '#f8f9fa',
+                                'cursor': 'pointer'
+                            },
+                            multiple=False
+                        ),
+                        html.Div(id='resume-upload-status', className="mt-2")
+                    ])
+                ),
+                id="collapse-resume",
+                is_open=False,
+            )
+        ], width=12)
+    ]),
     dbc.Spinner(
         html.Div(id="job-grid-container", children=create_job_grid()),
         spinner_style={"width": "3rem", "height": "3rem"},
@@ -510,3 +555,56 @@ def toggle_modal(cell_data: Optional[Dict[str, Any]], n_clicks: int, is_open: bo
                 return True, create_job_details_content(row_data)
     
     return is_open, []
+
+@callback(
+    [Output('upload-resume', 'children'),
+     Output('resume-upload-status', 'children')],
+    Input('upload-resume', 'contents'),
+    State('upload-resume', 'filename')
+)
+def update_resume_status(contents, filename):
+    if contents is None:
+        return html.Div([
+            'Drag and Drop or ',
+            html.A('Select Resume')
+        ]), ""
+    
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    
+    try:
+        if filename.endswith('.pdf'):
+            return html.Div([
+                html.I(className="fas fa-check-circle text-success me-2"),
+                f"Resume uploaded: {filename}"
+            ], className="text-center"), ""
+        elif filename.endswith('.docx') or filename.endswith('.doc'):
+            return html.Div([
+                html.I(className="fas fa-check-circle text-success me-2"),
+                f"Resume uploaded: {filename}"
+            ], className="text-center"), ""
+        elif filename.endswith('.txt'):
+            return html.Div([
+                html.I(className="fas fa-check-circle text-success me-2"),
+                f"Resume uploaded: {filename}"
+            ], className="text-center"), ""
+        else:
+            return html.Div([
+                html.I(className="fas fa-exclamation-circle text-danger me-2"),
+                "Please upload a PDF, Word document, or text file"
+            ], className="text-center text-danger"), ""
+    except Exception as e:
+        return html.Div([
+            html.I(className="fas fa-exclamation-circle text-danger me-2"),
+            "Error processing file"
+        ], className="text-center text-danger"), ""
+
+@callback(
+    Output("collapse-resume", "is_open"),
+    [Input("collapse-resume-button", "n_clicks")],
+    [State("collapse-resume", "is_open")],
+)
+def toggle_resume_collapse(n, is_open):
+    if n:
+        return not is_open
+    return is_open
