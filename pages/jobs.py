@@ -5,6 +5,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 from dash_ag_grid import AgGrid
 import json
+import os
 
 # Register the page
 dash.register_page(
@@ -25,6 +26,80 @@ def load_job_data() -> pd.DataFrame:
     except Exception as e:
         print(f"Error loading data: {e}")
         return pd.DataFrame()
+
+#############################################
+
+from langchain_community.llms import OpenAI
+
+
+# Extraction function using a single text template
+def extract_filters(user_query: str) -> dict:
+    base_prompt = """
+    You are a data‐extraction assistant. A user will give you a free-text job-search query, and you must extract any filter values they mention for these six fields:
+
+    • Job Title  
+    • Work Arrangement  
+    • Work Type  
+    • Posting Date  
+    • Company Name  
+    • Location  
+
+    Return exactly one JSON object with these keys:
+    ```
+
+    {{
+    "job_title":         <string or null>,
+    "work_arrangement":  <string or null>,
+    "work_type":         <string or null>,
+    "posting_date":      <string or null>,
+    "company_name":      <string or null>,
+    "location":          <string or null>
+    }}
+
+    ```
+
+    Rules:
+    1. **Job Title**, **Company Name**, **Location**: return the exact string(s) mentioned, or `null`.  
+    2. **Work Arrangement**: normalize to one of `On-site`, `Remote`, or `Hybrid`; if multiple, comma-separate; else `null`.  
+    3. **Work Type**: normalize to one of `Full time`, `Part time`, `Contract/Temp`, or `Casual/Vacation`; if multiple, comma-separate; else `null`.  
+    4. **Posting Date**: normalize any absolute dates or datetimes into ISO 8601 UTC format with “Z” (e.g. `2025-04-16T05:55:49Z`).  
+    - If they give a range (e.g. “last week”), express as `startDateZ/endDateZ`.  
+    - If unspecified, set to `null`.  
+    5. If the user mentions multiple values for a field, join them with commas in a single string.  
+    6. Do not output any extra keys, explanation, or formatting—only the JSON.
+
+    Example:
+    ```
+
+    User query:
+    “I’m hunting Hybrid UX Designer gigs, Full time or Contract/Temp, posted 2 days ago at Initech in New York.”
+
+    Your output:
+    {{
+    "job_title":         "UX Designer",
+    "work_arrangement":  "Hybrid",
+    "work_type":         "Full time, Contract/Temp",
+    "posting_date":      "2025-05-18T00:00:00Z/2025-05-20T00:00:00Z",
+    "company_name":      "Initech",
+    "location":          "New York"
+    }}
+
+    ```
+
+    Now process the following input and extract the filters:
+
+    User query:
+    “{user_query}”
+    """
+
+    llm = OpenAI(temperature=0, openai_api_key=os.environ.get('OPENAI_API_KEY'))
+    prompt = base_prompt.format(user_query=user_query)
+    raw_output = llm(prompt)
+    
+    return json.loads(raw_output)
+
+#############################################
+
 
 def get_column_definitions() -> List[Dict[str, Any]]:
     return [
