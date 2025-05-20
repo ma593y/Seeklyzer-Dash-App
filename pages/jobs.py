@@ -1,10 +1,10 @@
+from typing import Dict, List, Optional, Any
 import dash
-from dash import html, dcc
+from dash import html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
 import pandas as pd
 from dash_ag_grid import AgGrid
 import json
-from dash import Input, Output, State, callback
 
 # Register the page
 dash.register_page(
@@ -14,8 +14,7 @@ dash.register_page(
     name='Job Finder'
 )
 
-def load_job_data():
-    """Load and preprocess job data from parquet file."""
+def load_job_data() -> pd.DataFrame:
     try:
         df = pd.read_parquet("data/preprocessed_seek_jobs_files/preprocessed_seek_jobs_plus_json.parquet")
         # Convert JSON columns to strings for display
@@ -27,8 +26,78 @@ def load_job_data():
         print(f"Error loading data: {e}")
         return pd.DataFrame()
 
-def create_job_grid():
-    """Create and configure the AG Grid component for job listings."""
+def get_column_definitions() -> List[Dict[str, Any]]:
+    return [
+        {
+            "field": "Job Id",
+            "filter": True,
+            "sortable": True,
+            "width": 100,
+            "minWidth": 80,
+            "flex": 0
+        },
+        {
+            "field": "Job Title",
+            "filter": True,
+            "sortable": True,
+            "width": 270,
+            "minWidth": 200,
+            "flex": 2
+        },
+        {
+            "field": "Advertiser Name",
+            "headerName": "Company Name",
+            "filter": True,
+            "sortable": True,
+            "width": 200,
+            "minWidth": 150,
+            "flex": 1
+        },
+        {
+            "field": "Location",
+            "filter": True,
+            "sortable": True,
+            "width": 150,
+            "minWidth": 120,
+            "flex": 1
+        },
+        {
+            "field": "Work Type",
+            "filter": True,
+            "sortable": True,
+            "width": 150,
+            "minWidth": 150,
+            "flex": 0
+        },
+        {
+            "field": "Work Arrangement",
+            "filter": True,
+            "sortable": True,
+            "width": 180,
+            "minWidth": 180,
+            "flex": 0
+        },
+        {
+            "field": "Posting Date",
+            "filter": True,
+            "sortable": True,
+            "width": 200,
+            "minWidth": 200,
+            "flex": 1
+        },
+        {
+            "field": "actions",
+            "headerName": "Actions",
+            "sortable": False,
+            "filter": False,
+            "cellRenderer": "ActionButtons",
+            "width": 200,
+            "minWidth": 200,
+            "flex": 1
+        }
+    ]
+
+def create_job_grid() -> AgGrid:
     df = load_job_data()
     if df.empty:
         return dbc.Alert("No data available", color="warning")
@@ -40,99 +109,10 @@ def create_job_grid():
     ]
     df = df[columns_to_show]
     
-    # Define column definitions
-    columnDefs = []
-    for col in df.columns:
-        if col == 'Advertiser Name':
-            columnDefs.append({
-                "field": col,
-                "headerName": "Company Name",
-                "filter": True,
-                "sortable": True,
-                "width": 200,
-                "minWidth": 150,
-                "flex": 1
-            })
-        elif col == 'Job Title':
-            columnDefs.append({
-                "field": col,
-                "filter": True,
-                "sortable": True,
-                "width": 270,
-                "minWidth": 200,
-                "flex": 2
-            })
-        elif col == 'Location':
-            columnDefs.append({
-                "field": col,
-                "filter": True,
-                "sortable": True,
-                "width": 150,
-                "minWidth": 120,
-                "flex": 1
-            })
-        elif col == 'Work Type':
-            columnDefs.append({
-                "field": col,
-                "filter": True,
-                "sortable": True,
-                "width": 150,
-                "minWidth": 150,
-                "flex": 0
-            })
-        elif col == 'Work Arrangement':
-            columnDefs.append({
-                "field": col,
-                "filter": True,
-                "sortable": True,
-                "width": 180,
-                "minWidth": 180,
-                "flex": 0
-            })
-        elif col == 'Posting Date':
-            columnDefs.append({
-                "field": col,
-                "filter": True,
-                "sortable": True,
-                "width": 200,
-                "minWidth": 200,
-                "flex": 1
-            })
-        elif col == 'Job Id':
-            columnDefs.append({
-                "field": col,
-                "filter": True,
-                "sortable": True,
-                "width": 100,
-                "minWidth": 80,
-                "flex": 0
-            })
-        else:
-            columnDefs.append({
-                "field": col,
-                "filter": True,
-                "sortable": True,
-                "width": 150,
-                "minWidth": 100,
-                "flex": 1
-            })
-    
-    # Add action column with both View on Seek and View Details buttons
-    columnDefs.append({
-        "field": "actions",
-        "headerName": "Actions",
-        "sortable": False,
-        "filter": False,
-        "cellRenderer": "ActionButtons",
-        "width": 200,
-        "minWidth": 200,
-        "flex": 1
-    })
-    
     return AgGrid(
         id="job-grid",
         rowData=df.to_dict("records"),
-        columnDefs=columnDefs,
+        columnDefs=get_column_definitions(),
         defaultColDef={
             "resizable": True,
             "sortable": True,
@@ -163,52 +143,145 @@ def create_job_grid():
         className="ag-theme-alpine",
     )
 
-def create_job_details_modal():
-    """Create the modal component for displaying job details."""
+def create_job_details_modal() -> dbc.Modal:
     return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Job Details")),
-        dbc.ModalBody(id="job-details-content"),
-        dbc.ModalFooter(
-            dbc.Button("Close", id="close-modal", className="ms-auto", n_clicks=0)
+        dbc.ModalHeader(
+            dbc.ModalTitle("Job Details", className="text-primary"),
+            close_button=True,
+            className="border-bottom"
         ),
-    ], id="job-details-modal", size="lg", is_open=False)
+        dbc.ModalBody(
+            id="job-details-content",
+            className="p-4",
+            style={"maxHeight": "70vh", "overflowY": "auto"}
+        ),
+        dbc.ModalFooter(
+            dbc.Button(
+                "Close",
+                id="close-modal",
+                className="ms-auto",
+                color="secondary",
+                n_clicks=0
+            ),
+            className="border-top"
+        ),
+    ], 
+    id="job-details-modal",
+    size="lg",
+    is_open=False,
+    backdrop="static",
+    className="job-details-modal"
+    )
 
-def create_job_details_content(row_data):
-    """Create the content for the job details modal."""
+from bs4 import BeautifulSoup
+
+def replace_heading_with_strong(html_text):
+    """
+    Replace all heading tags (h1-h6) in the given HTML text by extracting their text
+    and wrapping it in <strong> tags.
+
+    :param html_text: HTML string containing heading tags
+    :return: Modified HTML string with headings replaced by <strong>
+    """
+    soup = BeautifulSoup(html_text, 'html.parser')
+    for level in range(1, 7):
+        for tag in soup.find_all(f'h{level}'):
+            print(tag, tag.get_text())
+            # Create a new <strong> tag with the heading text
+            strong_tag = soup.new_tag('strong')
+            strong_tag.string = tag.get_text()
+            # Replace the heading tag entirely with the new <strong> tag
+            tag.replace_with(strong_tag)
+    return str(soup)
+
+def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
     # Get fresh data from the DataFrame
     df = load_job_data()
     job_id = row_data["Job Id"]
     job_data = df[df["Job Id"] == job_id].iloc[0]
     
-    return [
-        html.H4(job_data["Job Title"]),
-        html.Hr(),
-        html.Div([
-            html.P([html.Strong("Job ID: "), str(job_data["Job Id"])]),
-            html.P([html.Strong("Role ID: "), str(job_data["Role Id"])]),
-            html.P([html.Strong("Company: "), job_data["Company Name"]]),
-            html.P([html.Strong("Advertiser: "), job_data["Advertiser Name"]]),
-            html.P([html.Strong("Location: "), job_data["Location"]]),
-            html.P([html.Strong("Work Type: "), job_data["Work Type"]]),
-            html.P([html.Strong("Work Arrangement: "), job_data["Work Arrangement"]]),
-            html.P([html.Strong("Posting Date: "), job_data["Posting Date"]]),
-            html.P([html.Strong("Salary Range: "), job_data["Salary Range"]]),
-            html.Hr(),
-            html.H5("Job Teaser"),
-            html.P(job_data["Job Teaser"]),
-            html.Hr(),
-            html.H5("Highlights"),
-            html.P(job_data["Highlights"]),
-            html.Div([
-                html.P([html.Strong("Highlight 1: "), job_data["Highlight Point 1"]]),
-                html.P([html.Strong("Highlight 2: "), job_data["Highlight Point 2"]]),
-                html.P([html.Strong("Highlight 3: "), job_data["Highlight Point 3"]]),
-            ]),
-            html.Hr(),
-            html.H5("Job Description"),
-            html.P(job_data["Job Description"])
-        ])
-    ]
+    # Define sections and their fields
+    sections = {
+        "Basic Information": [
+            ("Job ID", "Job Id"),
+            ("Job Title", "Job Title"),
+            # ("Role ID", "Role Id"),
+            # ("Company", "Company Name"),
+            ("Company", "Advertiser Name"),
+            ("Location", "Location"),
+            ("Work Type", "Work Type"),
+            ("Work Arrangement", "Work Arrangement"),
+            ("Salary Range", "Salary Range"),
+            ("Posting Date", "Posting Date")
+        ],
+        "Job Overview": [
+            ("Job Teaser", "Job Teaser"),
+            ("Highlights", "Highlights")
+        ],
+        "Job Description": [
+            ("Description", "Job Description")
+        ]
+    }
+    
+    content = []
+    
+    # Add job title at the top
+    content.append(
+        html.H4(job_data["Job Title"], className="mb-4 text-primary")
+    )
+    
+    # Iterate through sections
+    for section_title, fields in sections.items():
+        section_content = []
+        
+        # Add fields that have data
+        for label, field in fields:
+            if field in job_data and job_data[field] and str(job_data[field]).strip():
+                if field == "Highlights":
+                    # Special handling for highlights
+                    highlights = []
+                    for i in range(1, 4):
+                        highlight_key = f"Highlight Point {i}"
+                        if highlight_key in job_data and job_data[highlight_key]:
+                            highlights.append(
+                                html.Div([
+                                    html.I(className="fas fa-check-circle text-success me-2"),
+                                    html.Span(job_data[highlight_key])
+                                ], className="mb-2")
+                            )
+                    if highlights:
+                        section_content.append(
+                            html.Div([
+                                html.H6(label, className="mb-3"),
+                                html.Div(highlights, className="ms-3")
+                            ])
+                        )
+                elif field == "Job Description":
+                    # Special handling for Job Description to render HTML
+                    section_content.append(
+                        dcc.Markdown(
+                            replace_heading_with_strong(job_data[field]),
+                            className="job-description",
+                            dangerously_allow_html=True
+                        )
+                    )
+                else:
+                    section_content.append(
+                        html.Div([
+                            html.Strong(f"{label}: ", className="text-muted"),
+                            html.Span(str(job_data[field]))
+                        ], className="mb-2")
+                    )
+        
+        # Only add section if it has content
+        if section_content:
+            content.extend([
+                html.Hr(className="my-4"),
+                html.H5(section_title, className="mb-3 text-primary"),
+                html.Div(section_content, className="ms-3")
+            ])
+    
+    return content
 
 # Layout with AG Grid and Modal
 layout = dbc.Container([
@@ -224,8 +297,7 @@ layout = dbc.Container([
     Input("close-modal", "n_clicks"),
     State("job-details-modal", "is_open"),
 )
-def toggle_modal(cell_data, n_clicks, is_open):
-    """Handle modal interactions for displaying job details."""
+def toggle_modal(cell_data: Optional[Dict[str, Any]], n_clicks: int, is_open: bool) -> tuple[bool, List[html.Div]]:
     ctx = dash.callback_context
     if not ctx.triggered:
         return is_open, []
