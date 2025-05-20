@@ -445,7 +445,14 @@ layout = dbc.Container([
             ], className="mb-4")
         ], width=12)
     ]),
-    html.Div(id="job-grid-container", children=create_job_grid()),
+    dbc.Spinner(
+        html.Div(id="job-grid-container", children=create_job_grid()),
+        spinner_style={"width": "3rem", "height": "3rem"},
+        color="primary",
+        type="border",
+        fullscreen=False,
+        delay_show=0
+    ),
     create_job_details_modal()
 ], fluid=True)
 
@@ -465,18 +472,13 @@ def update_grid(n_clicks, n_submit, clear_clicks, search_query):
     
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
-    # Handle clear button click
     if trigger_id == "clear-button":
         return create_job_grid(), ""
     
-    # Handle search (either button click or Enter key)
     if not search_query:
         return create_job_grid(), dash.no_update
     
-    # Extract filters from the search query
     filters = extract_filters(search_query)
-    
-    # Load and filter the data
     df = load_job_data()
     filtered_df = filter_dataframe(df, filters)
     
