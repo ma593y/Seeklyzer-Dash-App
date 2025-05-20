@@ -25,7 +25,13 @@ def load_job_data() -> pd.DataFrame:
         # Convert JSON columns to strings for display
         for col in df.columns:
             if df[col].dtype == 'object':
-                df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, (dict, list)) else str(x))
+                try:
+                    # Try to parse if it's already a string representation of JSON
+                    df[col] = df[col].apply(lambda x: json.loads(x) if isinstance(x, str) and x.strip().startswith('{') else x)
+                except:
+                    # If parsing fails, keep as is
+                    pass
+        print("Available columns:", df.columns.tolist())
         return df
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -336,6 +342,11 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
     job_id = row_data["Job Id"]
     job_data = df[df["Job Id"] == job_id].iloc[0]
     
+    # Debug print
+    print("Job data columns:", job_data.index.tolist())
+    print("Extracted Details available:", "Extracted Details" in job_data)
+    print("Extracted Details content:", job_data["Extracted Details"])
+    
     # Define sections and their fields
     sections = {
         "Basic Information": [
@@ -421,11 +432,66 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
                 )
             )
     
+    # Handle Extracted Details separately
+    if "Extracted Details" in job_data and job_data["Extracted Details"]:
+        try:
+            extracted_details = job_data["Extracted Details"]
+            if isinstance(extracted_details, str):
+                extracted_details = json.loads(extracted_details)
+            
+            section_content = []
+            
+            # Process each category
+            categories = {
+                "Key Responsibilities & Duties": "key_responsibilities_duties",
+                "Essential Qualifications & Experience": "essential_qualifications_experience",
+                "Skills & Competencies": "skills_competencies"
+            }
+            
+            for label, field in categories.items():
+                if field in extracted_details and extracted_details[field]:
+                    items = []
+                    for item in extracted_details[field]:
+                        bullet_point = item.get('bullet_point', '')
+                        assessment = item.get('assessment_instructions', '')
+                        
+                        item_content = html.Div([
+                            html.Div([
+                                html.I(className="fas fa-circle text-primary me-2"),
+                                html.Span(bullet_point)
+                            ], className="mb-2"),
+                            html.Div([
+                                html.I(className="fas fa-info-circle text-info me-2"),
+                                html.Span(assessment, className="text-muted")
+                            ], className="ms-4 mb-3")
+                        ])
+                        items.append(item_content)
+                    
+                    if items:
+                        section_content.append(
+                            html.Div([
+                                html.H6(label, className="mb-3"),
+                                html.Div(items, className="ms-3")
+                            ])
+                        )
+            
+            if section_content:
+                accordion_items.append(
+                    dbc.AccordionItem(
+                        section_content,
+                        title="Extracted Details",
+                        item_id="section-extracted-details",
+                        className="border-0"
+                    )
+                )
+        except Exception as e:
+            print(f"Error processing Extracted Details: {e}")
+    
     # Create the accordion with all items
     content.append(
         dbc.Accordion(
             accordion_items,
-            active_item=[f"section-{title.lower().replace(' ', '-')}" for title in sections.keys()],
+            active_item=[f"section-{title.lower().replace(' ', '-')}" for title in sections.keys()] + ["section-extracted-details"],
             className="mt-3",
             always_open=True
         )
