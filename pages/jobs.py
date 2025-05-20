@@ -1,8 +1,10 @@
 import re
+import time
 from typing import Dict, List, Optional, Any
 import dash
 from dash import html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
+from langchain_xai import ChatXAI
 import pandas as pd
 from dash_ag_grid import AgGrid
 import json
@@ -407,11 +409,13 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
                 elif field == "Job Description":
                     # Special handling for Job Description to render HTML
                     section_content.append(
-                        dcc.Markdown(
-                            replace_heading_with_strong(job_data[field]),
-                            className="job-description",
-                            dangerously_allow_html=True
-                        )
+                        html.Div([
+                            dcc.Markdown(
+                                children=replace_heading_with_strong(job_data[field]),
+                                className="job-description",
+                                dangerously_allow_html=True
+                            )
+                        ])
                     )
                 else:
                     section_content.append(
@@ -486,12 +490,29 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
                 )
         except Exception as e:
             print(f"Error processing Extracted Details: {e}")
+
+    # Add Resume Assessment section
+    accordion_items.append(
+        dbc.AccordionItem(
+            html.Div([
+                html.Div(id="resume-assessment-content", children=[
+                    html.Div([
+                        html.I(className="fas fa-file-alt text-primary me-2"),
+                        html.Span("Upload your resume to see how well it matches this job's requirements")
+                    ], className="text-center p-4")
+                ])
+            ]),
+            title="Resume Assessment",
+            item_id="section-resume-assessment",
+            className="border-0"
+        )
+    )
     
     # Create the accordion with all items
     content.append(
         dbc.Accordion(
             accordion_items,
-            active_item=[f"section-{title.lower().replace(' ', '-')}" for title in sections.keys()] + ["section-extracted-details"],
+            active_item=[f"section-{title.lower().replace(' ', '-')}" for title in sections.keys()] + ["section-extracted-details", "section-resume-assessment"],
             className="mt-3",
             always_open=True
         )
@@ -499,8 +520,332 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
     
     return content
 
+def assess_resume_against_requirements(resume_text: str, job_requirements: dict) -> dict:
+    print(resume_text)
+    print(job_requirements)
+
+    ########################################################################################
+    # This is a template that will be enhanced with actual XAI implementation
+
+    # Initialize ChatXAI
+    chat_xai = ChatXAI(api_key=os.environ.get("XAI_API_KEY"), model="grok-3-mini-beta", temperature=0, max_tokens=4096)
+    print("ChatXAI initialized with grok-3-mini-beta model")
+    
+    system_prompt = "You are an expert in IT recruitment and resume evaluation, with deep knowledge of IT roles, skills, and qualifications. Your role is to objectively and accurately assess resumes against job descriptions, following provided instructions precisely. Use a professional, concise, and neutral tone, ensuring all outputs are structured as specified, typically in JSON format. Base your assessments solely on the provided job description JSON and resume text, without making external assumptions or adding unverified information. Handle errors gracefully, returning clear JSON error messages for invalid or missing inputs. Maintain consistency with standard IT recruitment practices, focusing on relevancy, technical accuracy, and alignment with job requirements."
+    human_prompt = f"""
+
+    You are an expert in resume evaluation for IT roles. Your task is to assess a provided resume against a JSON-formatted IT job description (JD) containing three sections: `key_responsibilities_duties`, `essential_qualifications_experience`, and `skills_competencies`. Each section is a list of objects with `bullet_point` (the requirement) and `assessment_instructions` (guidance for resume evaluation). For each bullet point, assign a relevancy score between 0 and 1 (continuous scale, e.g., 0.3, 0.7) based on how well the resume matches the requirement, using the assessment instructions. Calculate a score out of 100 for each section by averaging the bullet point scores and multiplying by 100. Compute an overall score out of 100 by averaging the section scores. Follow the instructions below to ensure accurate, concise, and practical assessment, focusing on IT-specific context as seen in real-world recruitment:
+
+    1. **Key Responsibilities / Duties**
+    - For each bullet point (e.g., "Develop web applications using Python"), use the assessment instructions (e.g., "Review the resume's work experience for roles or projects involving Python") to evaluate the resume's work experience, projects, or achievements.
+    - Assign a relevancy score (0-1) based on specificity and alignment:
+        - 0.8-1.0: Explicit match (e.g., resume lists exact task or outcome).
+        - 0.5-0.7: Partial match (e.g., related experience or similar outcomes).
+        - 0.1-0.4: Minimal relevance (e.g., broad experience but not specific).
+        - 0: No relevant experience or outcomes.
+    - Consider quantifiable achievements (e.g., "improved performance by 15%") when assessing outcomes.
+
+    2. **Essential Qualifications & Experience**
+    - For each bullet point (e.g., "Essential: Bachelor's in Computer Science" or "Preferred: 5+ years in cloud administration"), use the assessment instructions to check the resume's education, certifications, work history, or projects.
+    - Assign a relevancy score (0-1):
+        - Essential qualifications: 0.8-1.0 for full match, 0.5-0.7 for partial (e.g., related degree), 0.1-0.4 for minimal relevance, 0 for absent.
+        - Preferred qualifications: 0.5-0.7 for full match, 0.3-0.4 for partial, 0 for absent (lower weight to reflect preference).
+    - For experience, evaluate duration and relevance (e.g., 6 years for 5+ years required scores higher than 3 years).
+
+    3. **Skills & Competencies**
+    - For each bullet point (e.g., "Hard Skills: Python, AWS" or "Soft Skills: Problem-solving, Agile teamwork"), use the assessment instructions to check the resume's skills section, job descriptions, or achievements.
+    - Assign a relevancy score (0-1):
+        - Hard Skills: 0.8-1.0 for exact skills, 0.5-0.7 for related skills (e.g., Java for Python), 0.1-0.4 for general technical skills, 0 for none.
+        - Soft Skills: 0.8-1.0 for explicit evidence (e.g., "Led Agile team"), 0.5-0.7 for implied (e.g., general teamwork), 0.1-0.4 for weak evidence, 0 for none.
+    - Consider multiple skills in a single bullet point (e.g., "Python, AWS") by averaging their individual relevancy.
+
+    **Output Format**:
+    Provide the assessment results in JSON format with four keys:
+    - `key_responsibilities_duties`: List of objects with `bullet_point`, `assessment_instructions`, and `relevancy_score` (0-1).
+    - `essential_qualifications_experience`: List of objects with `bullet_point`, `assessment_instructions`, and `relevancy_score` (0-1).
+    - `skills_competencies`: List of objects with `bullet_point`, `assessment_instructions`, and `relevancy_score` (0-1).
+    - `scores`: Object with `key_responsibilities_duties_score`, `essential_qualifications_experience_score`, `skills_competencies_score` (each out of 100), and `overall_score` (average of section scores, out of 100).
+
+    Ensure all strings are properly escaped to avoid JSON formatting issues. Round relevancy scores to two decimal places and section/overall scores to one decimal place. If the resume or JD JSON is missing or invalid, return a JSON object with a single key `error` describing the issue. Ensure the tone is professional and the assessment is concise, reflecting standard IT recruitment practices.
+
+    **Example Output**:
+
+    ```json
+    {{
+    "key_responsibilities_duties": [
+        {{
+        "bullet_point": "Develop and maintain web applications using Node.js",
+        "assessment_instructions": "Review the resume's work experience for roles or projects involving Node.js or similar web development technologies.",
+        "relevancy_score": 0.90
+        }},
+        {{
+        "bullet_point": "Ensure network security through regular audits and updates",
+        "assessment_instructions": "Look for achievements in the resume's work experience related to network security or audits, such as implementing security protocols.",
+        "relevancy_score": 0.80
+        }}
+    ],
+    "essential_qualifications_experience": [
+        {{
+        "bullet_point": "Essential: Bachelor's degree in Information Technology or related field",
+        "assessment_instructions": "Check the resume's education section for a Bachelor's degree in IT or a related field.",
+        "relevancy_score": 1.00
+        }},
+        {{
+        "bullet_point": "Essential: 3+ years in software development or network administration",
+        "assessment_instructions": "Review the resume's work history to confirm at least 3 years in relevant software development or network administration roles.",
+        "relevancy_score": 0.80
+        }},
+        {{
+        "bullet_point": "Preferred: Master's degree in Computer Science",
+        "assessment_instructions": "Check the resume's education section for a Master's degree in Computer Science.",
+        "relevancy_score": 0.70
+        }},
+        {{
+        "bullet_point": "Preferred: Experience with cloud-based environments like AWS or Azure",
+        "assessment_instructions": "Look for cloud-related experience (e.g., AWS, Azure) in the resume's work history or projects.",
+        "relevancy_score": 0.60
+        }}
+    ],
+    "skills_competencies": [
+        {{
+        "bullet_point": "Hard Skills: Node.js, AWS, firewall management",
+        "assessment_instructions": "Check the resume's skills section or job descriptions for proficiency in Node.js, AWS, and firewall management.",
+        "relevancy_score": 0.90
+        }},
+        {{
+        "bullet_point": "Soft Skills: Problem-solving, technical communication, Agile teamwork",
+        "assessment_instructions": "Look for evidence in the resume's job duties or achievements, such as resolving technical issues, communicating with stakeholders, or working in Agile teams.",
+        "relevancy_score": 0.75
+        }}
+    ],
+    "scores": {{
+        "key_responsibilities_duties_score": 85.0,
+        "essential_qualifications_experience_score": 77.5,
+        "skills_competencies_score": 82.5,
+        "overall_score": 81.7
+    }}
+    }}
+    ```
+
+    **Error Output Examples**:
+
+    ```json
+    {{
+    "error": "Both a valid JSON job description and a resume are required for assessment"
+    }}
+    ```
+
+    ```json
+    {{
+    "error": "Invalid JSON format in job description"
+    }}
+    ```
+
+    **Input**:
+    ============JOB DESCRIPTION JSON============
+    {job_requirements}
+    ============JOB DESCRIPTION JSON============
+    ============RESUME============
+    {resume_text}
+    ============RESUME============
+
+    **Task**:
+    Analyze the provided JSON-formatted IT job description and resume text. Assess the resume against each bullet point in the JD JSON, assigning a relevancy score (0-1) based on the assessment instructions. Calculate section scores (average bullet point scores × 100) and an overall score (average section scores). Output the results in JSON format with bullet point scores, section scores, and the overall score. If the input is missing or invalid, return a JSON error object.
+
+    """
+
+    messages = [
+        ("system", system_prompt),
+        ("human", human_prompt)
+    ]
+
+    # Make the API call directly
+    print("Sending request to ChatXAI API...")
+    start_time = time.time()
+    response = chat_xai.invoke(messages)
+    processing_time = time.time() - start_time
+    print(f"Response received in {processing_time:.2f} seconds")
+    print(response.content)
+    return response.content
+    ########################################################################################
+
+    return {
+        "overall_match_score": 0.0,
+        "category_scores": {
+            "key_responsibilities": 0.0,
+            "qualifications": 0.0,
+            "skills": 0.0
+        },
+        "detailed_assessment": {
+            "key_responsibilities": [],
+            "qualifications": [],
+            "skills": []
+        },
+        "missing_requirements": {
+            "key_responsibilities": [],
+            "qualifications": [],
+            "skills": []
+        },
+        "recommendations": []
+    }
+
+@callback(
+    Output("resume-assessment-content", "children"),
+    [Input("resume-store", "data"),
+     Input("job-details-modal", "is_open")],
+    [State("job-grid", "cellRendererData")],
+    prevent_initial_call=True
+)
+def update_resume_assessment(resume_data, is_modal_open, cell_data):
+    if not is_modal_open or not resume_data or not cell_data:
+        return html.Div([
+            html.I(className="fas fa-file-alt text-primary me-2"),
+            html.Span("Upload your resume to see how well it matches this job's requirements")
+        ], className="text-center p-4")
+    
+    try:
+        # Get job requirements from the current job
+        job_id = cell_data.get("value", {}).get("data", {}).get("Job Id")
+        if not job_id:
+            return html.Div("Error: Could not find job details", className="text-danger")
+        
+        df = load_job_data()
+        job_data = df[df["Job Id"] == job_id].iloc[0]
+        
+        if "Extracted Details" not in job_data:
+            return html.Div("Error: Job requirements not available", className="text-danger")
+        
+        # Get resume content from stored data
+        content_string = resume_data['content']
+        if ',' in content_string:
+            content_type, content_string = content_string.split(',', 1)
+        else:
+            content_string = content_string
+        
+        decoded = base64.b64decode(content_string)
+        
+        # Convert resume to text
+        resume_text = decoded.decode('utf-8')
+        
+        # Get job requirements
+        job_requirements = job_data["Extracted Details"]
+        if isinstance(job_requirements, str):
+            job_requirements = json.loads(job_requirements)
+        
+        # Assess resume against requirements
+        assessment_response = assess_resume_against_requirements(resume_text, job_requirements)
+        
+        # Parse the assessment response as JSON
+        try:
+            assessment = json.loads(assessment_response)
+        except json.JSONDecodeError:
+            print(f"Error parsing assessment response: {assessment_response}")
+            return html.Div([
+                html.I(className="fas fa-exclamation-circle text-danger me-2"),
+                html.Span("Error processing resume assessment")
+            ], className="text-center text-danger p-4")
+        
+        # Create assessment display
+        return html.Div([
+            # Overall match score
+            html.Div([
+                html.H5("Overall Match Score", className="mb-3"),
+                html.Div([
+                    html.Div([
+                        html.Div(
+                            className="progress-bar bg-success",
+                            style={"width": f"{assessment['scores']['overall_score']}%"}
+                        )
+                    ], className="progress", style={"height": "25px"}),
+                    html.Div(
+                        f"{assessment['scores']['overall_score']}%",
+                        className="text-center mt-2"
+                    )
+                ], className="mb-4")
+            ]),
+            
+            # Category scores
+            html.Div([
+                html.H5("Category Scores", className="mb-3"),
+                html.Div([
+                    html.Div([
+                        html.Strong("Key Responsibilities: "),
+                        f"{assessment['scores']['key_responsibilities_duties_score']}%"
+                    ], className="mb-2"),
+                    html.Div([
+                        html.Strong("Qualifications: "),
+                        f"{assessment['scores']['essential_qualifications_experience_score']}%"
+                    ], className="mb-2"),
+                    html.Div([
+                        html.Strong("Skills: "),
+                        f"{assessment['scores']['skills_competencies_score']}%"
+                    ], className="mb-2")
+                ], className="ms-3")
+            ], className="mb-4"),
+            
+            # Detailed assessment
+            html.Div([
+                html.H5("Detailed Assessment", className="mb-3"),
+                html.Div([
+                    html.Div([
+                        html.H6("Key Responsibilities", className="mb-2"),
+                        html.Div([
+                            html.Div([
+                                html.I(className="fas fa-circle text-primary me-2"),
+                                html.Span(item["bullet_point"]),
+                                html.Div([
+                                    html.I(className="fas fa-info-circle text-info me-2"),
+                                    html.Span(f"Match: {item['relevancy_score']*100:.1f}%", className="text-muted")
+                                ], className="ms-4")
+                            ], className="mb-2")
+                            for item in assessment["key_responsibilities_duties"]
+                        ], className="ms-3")
+                    ], className="mb-3"),
+                    
+                    html.Div([
+                        html.H6("Qualifications", className="mb-2"),
+                        html.Div([
+                            html.Div([
+                                html.I(className="fas fa-circle text-primary me-2"),
+                                html.Span(item["bullet_point"]),
+                                html.Div([
+                                    html.I(className="fas fa-info-circle text-info me-2"),
+                                    html.Span(f"Match: {item['relevancy_score']*100:.1f}%", className="text-muted")
+                                ], className="ms-4")
+                            ], className="mb-2")
+                            for item in assessment["essential_qualifications_experience"]
+                        ], className="ms-3")
+                    ], className="mb-3"),
+                    
+                    html.Div([
+                        html.H6("Skills", className="mb-2"),
+                        html.Div([
+                            html.Div([
+                                html.I(className="fas fa-circle text-primary me-2"),
+                                html.Span(item["bullet_point"]),
+                                html.Div([
+                                    html.I(className="fas fa-info-circle text-info me-2"),
+                                    html.Span(f"Match: {item['relevancy_score']*100:.1f}%", className="text-muted")
+                                ], className="ms-4")
+                            ], className="mb-2")
+                            for item in assessment["skills_competencies"]
+                        ], className="ms-3")
+                    ], className="mb-3")
+                ])
+            ])
+        ])
+        
+    except Exception as e:
+        print(f"Error in resume assessment: {e}")
+        return html.Div([
+            html.I(className="fas fa-exclamation-circle text-danger me-2"),
+            html.Span("Error processing resume assessment")
+        ], className="text-center text-danger p-4")
+
 # Layout with AG Grid and Modal
 layout = dbc.Container([
+    # Add dcc.Store for resume data
+    dcc.Store(id='resume-store', storage_type='local'),
     html.H1("Job Finder", className="text-center my-4"),
     dbc.Row([
         dbc.Col([
@@ -639,10 +984,27 @@ def toggle_modal(cell_data: Optional[Dict[str, Any]], n_clicks: int, is_open: bo
 @callback(
     [Output('upload-resume', 'children'),
      Output('resume-upload-status', 'children')],
-    Input('upload-resume', 'contents'),
-    State('upload-resume', 'filename')
+    [Input('resume-store', 'data'),
+     Input('upload-resume', 'contents')],
+    [State('upload-resume', 'filename')]
 )
-def update_resume_status(contents, filename):
+def update_resume_status(resume_data, contents, filename):
+    ctx = dash.callback_context
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
+    
+    # If triggered by resume-store (page load or resume data change)
+    if trigger_id == 'resume-store':
+        if resume_data:
+            return html.Div([
+                html.I(className="fas fa-check-circle text-success me-2"),
+                f"Resume uploaded: {resume_data['filename']}"
+            ], className="text-center"), ""
+        return html.Div([
+            'Drag and Drop or ',
+            html.A('Select Resume')
+        ]), ""
+    
+    # If triggered by new upload
     if contents is None:
         return html.Div([
             'Drag and Drop or ',
@@ -678,6 +1040,33 @@ def update_resume_status(contents, filename):
             html.I(className="fas fa-exclamation-circle text-danger me-2"),
             "Error processing file"
         ], className="text-center text-danger"), ""
+
+@callback(
+    [Output('upload-resume', 'children', allow_duplicate=True),
+     Output('resume-upload-status', 'children', allow_duplicate=True),
+     Output('resume-store', 'data')],
+    Input('upload-resume', 'contents'),
+    State('upload-resume', 'filename'),
+    prevent_initial_call=True
+)
+def store_resume_data(contents, filename):
+    if contents is None:
+        return dash.no_update, dash.no_update, None
+    
+    content_type, content_string = contents.split(',')
+    
+    try:
+        if filename.endswith(('.pdf', '.docx', '.doc', '.txt')):
+            resume_data = {
+                'filename': filename,
+                'content': content_string,
+                'content_type': content_type
+            }
+            return dash.no_update, dash.no_update, resume_data
+        else:
+            return dash.no_update, dash.no_update, None
+    except Exception as e:
+        return dash.no_update, dash.no_update, None
 
 @callback(
     Output("collapse-resume", "is_open"),
