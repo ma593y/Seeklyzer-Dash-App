@@ -390,9 +390,9 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
     job_data = df[df["Job Id"] == job_id].iloc[0]
     
     # Debug print
-    print("Job data columns:", job_data.index.tolist())
-    print("Extracted Details available:", "Extracted Details" in job_data)
-    print("Extracted Details content:", job_data["Extracted Details"])
+    # print("Job data columns:", job_data.index.tolist())
+    # print("Extracted Details available:", "Extracted Details" in job_data)
+    # print("Extracted Details content:", job_data["Extracted Details"])
     
     # Define sections and their fields
     sections = {
@@ -567,8 +567,8 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
 
 def assess_resume_against_requirements(resume_text: str, job_requirements: dict) -> dict:
     print("\n=== Assessing Resume Against Requirements ===")
-    print(resume_text)
-    print(job_requirements)
+    # print(resume_text)
+    # print(job_requirements)
 
     ########################################################################################
     # This is a template that will be enhanced with actual XAI implementation
@@ -711,7 +711,7 @@ def assess_resume_against_requirements(resume_text: str, job_requirements: dict)
     response = chat_xai.invoke(messages)
     processing_time = time.time() - start_time
     print(f"Response received in {processing_time:.2f} seconds")
-    print(response.content)
+    # print(response.content)
     return response.content
     ########################################################################################
 
@@ -1312,12 +1312,6 @@ def toggle_assessment_modal(n_clicks, close_clicks, is_open, grid_data, filter_m
                                     color="secondary",
                                     size="sm",
                                     className="me-2"
-                                ),
-                                dbc.Button(
-                                    "Assess",
-                                    id={"type": "job-assess-button", "index": job_id},
-                                    color="primary",
-                                    size="sm"
                                 )
                             ], width=4, className="d-flex justify-content-end")
                         ])
@@ -1402,114 +1396,6 @@ def toggle_job_collapse(n_clicks, is_open):
     if n_clicks:
         return not is_open
     return is_open
-
-# Add callback for job assessment
-@callback(
-    Output({"type": "job-assessment-results", "index": MATCH}, "children"),
-    [Input({"type": "job-assess-button", "index": MATCH}, "n_clicks"),
-     Input("assessment-all-store", "data")],
-    [State("resume-store", "data"),
-     State({"type": "job-assessment-results", "index": MATCH}, "id")],
-    prevent_initial_call=True
-)
-def assess_job(n_clicks, all_results, resume_data, element_id):
-    print("\n=== Assessing Job ===")
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return None
-        
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    job_id = element_id["index"]
-    
-    # Handle individual job assessment
-    if trigger_id.startswith('{"type":"job-assess-button"'):
-        if not n_clicks or not resume_data:
-            return None
-            
-        try:
-            # Get job data
-            df = load_job_data()
-            job_data = df[df["Job Id"] == job_id].iloc[0]
-            
-            if "Extracted Details" not in job_data:
-                return html.Div([
-                    html.I(className="fas fa-exclamation-circle text-warning me-2"),
-                    html.Span("No job details available for assessment")
-                ], className="text-warning")
-            
-            # Get resume content
-            content_string = resume_data['content']
-            if ',' in content_string:
-                content_type, content_string = content_string.split(',', 1)
-            else:
-                content_string = content_string
-            
-            decoded = base64.b64decode(content_string)
-            resume_text = decoded.decode('utf-8')
-            
-            # Get job requirements
-            job_requirements = job_data["Extracted Details"]
-            if isinstance(job_requirements, str):
-                job_requirements = json.loads(job_requirements)
-            
-            # Perform assessment
-            try:
-                print(f"Starting assessment for job ID: {job_id}")
-                assessment_response = assess_resume_against_requirements(resume_text, job_requirements)
-                print(f"Assessment completed for job ID: {job_id}")
-                
-                # Parse the assessment response
-                try:
-                    assessment = json.loads(assessment_response)
-                except json.JSONDecodeError:
-                    print(f"Error parsing assessment response for job ID {job_id}: {assessment_response}")
-                    return html.Div([
-                        html.I(className="fas fa-exclamation-circle text-danger me-2"),
-                        html.Span("Error processing resume assessment")
-                    ], className="text-center text-danger p-4")
-                
-                # Check for error in response
-                if 'error' in assessment:
-                    return html.Div([
-                        html.I(className="fas fa-exclamation-circle text-warning me-2"),
-                        html.Span(f"Error: {assessment['error']}")
-                    ], className="text-warning")
-                
-                return create_assessment_display(assessment, job_id)
-                    
-            except Exception as e:
-                print(f"Error during assessment for job ID {job_id}: {e}")
-                return html.Div([
-                    html.I(className="fas fa-exclamation-circle text-danger me-2"),
-                    html.Span(f"Assessment error: {str(e)}")
-                ], className="text-danger")
-            
-        except Exception as e:
-            print(f"Error in job assessment: {e}")
-            return html.Div([
-                html.I(className="fas fa-exclamation-circle text-danger me-2"),
-                html.Span(f"Error: {str(e)}")
-            ], className="text-danger")
-    
-    # Handle assess all jobs results
-    elif trigger_id == "assessment-all-store" and all_results and all_results.get("status") == "complete":
-        results = all_results.get("results", {})
-        
-        if job_id not in results:
-            return dash.no_update
-        
-        job_result = results[job_id]
-        
-        if job_result.get("error", False):
-            return html.Div([
-                html.I(className="fas fa-exclamation-circle text-warning me-2"),
-                html.Span(job_result.get("message", "Unknown error"))
-            ], className="text-warning")
-        
-        assessment = job_result.get("data", {})
-        return create_assessment_display(assessment, job_id)
-    
-    return None
 
 def create_assessment_display(assessment, job_id):
     print("\n=== Creating Assessment Display ===")
