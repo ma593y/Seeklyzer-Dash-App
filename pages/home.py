@@ -72,41 +72,7 @@ layout = dbc.Container([
                 className="text-center lead mb-5"
             )
         ], width=12)
-    ]),
-    
-    # Features section
-    dbc.Row([
-        dbc.Col([
-            html.H2("Features", className="text-center mb-4")
-        ], width=12)
-    ]),
-    
-    # Feature cards
-    dbc.Row([
-        dbc.Col(
-            create_feature_card(**feature),
-            width=12,
-            md=4,
-            className="mb-4"
-        ) for feature in FEATURES
-    ]),
-    
-    # Call to action
-    dbc.Row([
-        dbc.Col([
-            html.Hr(className="my-5"),
-            html.H3("Ready to Start?", className="text-center mb-4"),
-            html.P(
-                "Begin your journey to finding the perfect job match.",
-                className="text-center mb-4"
-            ),
-            dbc.Button(
-                "Get Started",
-                href="/resume",
-                color="primary",
-                size="lg",
-                className="d-block mx-auto"
-            )
-        ], width=12)
     ])
+
+    
 ], fluid=True, className="py-5")
