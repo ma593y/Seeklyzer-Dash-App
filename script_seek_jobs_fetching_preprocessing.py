@@ -296,13 +296,13 @@ def save_outputs(df):
     print(f"Saving {df.shape[0]} job listings to files with base name: {file_name}")
 
     df.to_excel(f'{file_name}.xlsx', index=False)
-    print(f"✓ Excel file saved: {file_name}.xlsx")
+    print(f"[OK] Excel file saved: {file_name}.xlsx")
     df.to_feather(f'{file_name}.feather')
-    print(f"✓ Feather file saved: {file_name}.feather")
+    print(f"[OK] Feather file saved: {file_name}.feather")
     df.to_parquet(f'{file_name}.parquet', index=False)
-    print(f"✓ Parquet file saved: {file_name}.parquet") 
+    print(f"[OK] Parquet file saved: {file_name}.parquet") 
     df.to_json(f'{file_name}.json', orient='records', lines=True)
-    print(f"✓ JSON file saved: {file_name}.json")
+    print(f"[OK] JSON file saved: {file_name}.json")
     print("All output files saved successfully")
 
 def main():

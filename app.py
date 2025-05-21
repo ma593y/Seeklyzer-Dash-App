@@ -35,7 +35,7 @@ def create_navbar() -> dbc.NavbarSimple:
             dbc.NavItem(dbc.NavLink("Home", href="/")),
             dbc.NavItem(dbc.NavLink("Resume Tool", href="/resume")),
             dbc.NavItem(dbc.NavLink("Job Finder", href="/jobs")),
-            dbc.NavItem(dbc.NavLink("Analytics", href="/analytics")),
+            dbc.NavItem(dbc.NavLink("Scripts", href="/scripts")),
             dbc.NavItem(dbc.NavLink("About", href="/about")),
         ],
         brand="Seeklyzer",

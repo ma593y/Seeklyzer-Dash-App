@@ -54,10 +54,10 @@ FEATURES: List[dict] = [
         "href": "/jobs"
     },
     {
-        "title": "Analytics",
-        "description": "View insights and trends in the job market to make informed career decisions.",
-        "icon": "fa-chart-line",
-        "href": "/analytics"
+        "title": "Scripts",
+        "description": "Run data processing scripts to fetch and analyze job listings from various sources.",
+        "icon": "fa-code",
+        "href": "/scripts"
     }
 ]
 

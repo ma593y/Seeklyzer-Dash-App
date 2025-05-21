@@ -183,7 +183,7 @@ def process_job_descriptions():
             return i, None, False
     
     # Use max_workers appropriate for your CPU (e.g., 3-4 for typical systems)
-    max_workers = 4  # Adjust based on your system capabilities
+    max_workers = 10  # Adjust based on your system capabilities
     
     # DEBUG MODE: Process only a subset during development
     debug_mode = False  # Set to False for full processing
