@@ -1502,3 +1502,115 @@ def create_assessment_display(assessment, job_id):
             is_open=False,
         )
     ])
+
+@callback(
+    [Output("assessment-all-store", "data"),
+     Output("assess-all-jobs-button", "disabled")],
+    Input("assess-all-jobs-button", "n_clicks"),
+    [State("resume-store", "data"),
+     State("job-grid", "filterModel"),
+     State("search-input", "value")],
+    prevent_initial_call=True
+)
+def assess_all_jobs(n_clicks, resume_data, filter_model, search_query):
+    print("\n=== Assessing All Jobs ===")
+    if not n_clicks or not resume_data:
+        print("No clicks or no resume data")
+        return dash.no_update, False
+        
+    try:
+        # Get resume content
+        content_string = resume_data['content']
+        if ',' in content_string:
+            content_type, content_string = content_string.split(',', 1)
+        else:
+            content_string = content_string
+        
+        decoded = base64.b64decode(content_string)
+        resume_text = decoded.decode('utf-8')
+        
+        # Get filtered jobs data
+        df = load_job_data()
+        
+        # Apply grid filters
+        if filter_model:
+            df = apply_grid_filters(df, filter_model)
+        
+        results = {}
+        
+        # Process each job
+        for _, job_data in df.iterrows():
+            job_id = job_data['Job Id']
+            
+            if "Extracted Details" not in job_data:
+                results[job_id] = {
+                    "error": True,
+                    "message": "No job details available for assessment"
+                }
+                continue
+            
+            try:
+                # Get job requirements
+                job_requirements = job_data["Extracted Details"]
+                if isinstance(job_requirements, str):
+                    job_requirements = json.loads(job_requirements)
+                
+                # Perform assessment
+                assessment_response = assess_resume_against_requirements(resume_text, job_requirements)
+                assessment = json.loads(assessment_response)
+                
+                results[job_id] = {
+                    "error": False,
+                    "data": assessment
+                }
+                
+            except Exception as e:
+                results[job_id] = {
+                    "error": True,
+                    "message": f"Error processing job: {str(e)}"
+                }
+        
+        return {
+            "status": "complete",
+            "results": results,
+            "timestamp": time.time()  # Add timestamp to force update
+        }, True  # Disable button after assessment
+        
+    except Exception as e:
+        print(f"Error in bulk assessment: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": time.time()
+        }, False
+
+@callback(
+    Output({"type": "job-assessment-results", "index": MATCH}, "children"),
+    Input("assessment-all-store", "data"),
+    State({"type": "job-assessment-results", "index": MATCH}, "id"),
+    prevent_initial_call=True
+)
+def display_job_assessment(all_results, element_id):
+    print("\n=== Displaying Job Assessment ===")
+    if not all_results or all_results.get("status") != "complete":
+        print("No results or status is not complete")
+        print(all_results)
+        return dash.no_update
+        
+    job_id = element_id["index"]
+    results = all_results.get("results", {})
+    
+    if job_id not in results:
+        print(f"Job ID {job_id} not found in results")
+        return dash.no_update
+        
+    job_result = results[job_id]
+    
+    if job_result.get("error", False):
+        return html.Div([
+            html.I(className="fas fa-exclamation-circle text-warning me-2"),
+            html.Span(job_result.get("message", "Unknown error"))
+        ], className="text-warning")
+    
+    assessment = job_result.get("data", {})
+    return create_assessment_display(assessment, job_id)
