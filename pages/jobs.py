@@ -298,8 +298,7 @@ def create_job_details_modal() -> dbc.Modal:
             className="border-bottom"
         ),
         dbc.ModalBody(
-            id="job-details-content",
-            className="p-4",
+            html.Div(id="job-details-content", className="p-4"),
             style={"maxHeight": "70vh", "overflowY": "auto"}
         ),
         dbc.ModalFooter(
@@ -690,7 +689,35 @@ def assess_resume_against_requirements(resume_text: str, job_requirements: dict)
     }
 
 @callback(
-    Output("resume-assessment-content", "children"),
+    [Output("job-details-modal", "is_open"),
+     Output("job-details-content", "children")],
+    [Input("job-grid", "cellRendererData"),
+     Input("close-modal", "n_clicks")],
+    [State("job-details-modal", "is_open")],
+)
+def toggle_modal(cell_data: Optional[Dict[str, Any]], n_clicks: int, is_open: bool) -> tuple[bool, List[html.Div]]:
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return is_open, []
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Handle modal close
+    if trigger_id == "close-modal":
+        return False, []
+    
+    # Handle job details view
+    if trigger_id == "job-grid" and cell_data:
+        if cell_data.get("value", {}).get("colId") == "details":
+            row_data = cell_data.get("value", {}).get("data", {})
+            if row_data:
+                return True, create_job_details_content(row_data)
+    
+    return is_open, []
+
+@callback(
+    [Output("job-details-content", "children", allow_duplicate=True),
+     Output("assessment-trigger", "data")],
     [Input("resume-store", "data"),
      Input("job-details-modal", "is_open")],
     [State("job-grid", "cellRendererData")],
@@ -698,22 +725,19 @@ def assess_resume_against_requirements(resume_text: str, job_requirements: dict)
 )
 def update_resume_assessment(resume_data, is_modal_open, cell_data):
     if not is_modal_open or not resume_data or not cell_data:
-        return html.Div([
-            html.I(className="fas fa-file-alt text-primary me-2"),
-            html.Span("Upload your resume to see how well it matches this job's requirements")
-        ], className="text-center p-4")
+        return dash.no_update, None
     
     try:
         # Get job requirements from the current job
         job_id = cell_data.get("value", {}).get("data", {}).get("Job Id")
         if not job_id:
-            return html.Div("Error: Could not find job details", className="text-danger")
+            return dash.no_update, None
         
         df = load_job_data()
         job_data = df[df["Job Id"] == job_id].iloc[0]
         
         if "Extracted Details" not in job_data:
-            return html.Div("Error: Job requirements not available", className="text-danger")
+            return dash.no_update, None
         
         # Get resume content from stored data
         content_string = resume_data['content']
@@ -731,6 +755,47 @@ def update_resume_assessment(resume_data, is_modal_open, cell_data):
         job_requirements = job_data["Extracted Details"]
         if isinstance(job_requirements, str):
             job_requirements = json.loads(job_requirements)
+        
+        # Get current job details content
+        current_content = create_job_details_content(cell_data.get("value", {}).get("data", {}))
+        
+        # Add spinner to the resume assessment section
+        for item in current_content:
+            if isinstance(item, dbc.Accordion):
+                for accordion_item in item.children:
+                    if accordion_item.item_id == "section-resume-assessment":
+                        accordion_item.children = dbc.Spinner(
+                            html.Div(id="assessment-results"),
+                            spinner_style={"width": "3rem", "height": "3rem"},
+                            color="primary",
+                            type="border",
+                            fullscreen=False,
+                            delay_show=0
+                        )
+        
+        return current_content, {"job_id": job_id, "resume_text": resume_text, "job_requirements": job_requirements}
+        
+    except Exception as e:
+        print(f"Error in resume assessment: {e}")
+        return dash.no_update, None
+
+@callback(
+    Output("assessment-results", "children"),
+    Input("assessment-trigger", "data"),
+    prevent_initial_call=True
+)
+def process_resume_assessment(trigger_data):
+    if not trigger_data:
+        return None
+        
+    try:
+        # Get data from trigger
+        job_id = trigger_data.get("job_id")
+        resume_text = trigger_data.get("resume_text")
+        job_requirements = trigger_data.get("job_requirements")
+        
+        if not all([job_id, resume_text, job_requirements]):
+            return html.Div("Error: Missing required data", className="text-danger")
         
         # Assess resume against requirements
         assessment_response = assess_resume_against_requirements(resume_text, job_requirements)
@@ -846,6 +911,7 @@ def update_resume_assessment(resume_data, is_modal_open, cell_data):
 layout = dbc.Container([
     # Add dcc.Store for resume data
     dcc.Store(id='resume-store', storage_type='local'),
+    dcc.Store(id='assessment-trigger', data=None),
     html.H1("Job Finder", className="text-center my-4"),
     dbc.Row([
         dbc.Col([
@@ -955,38 +1021,11 @@ def update_grid(n_clicks, n_submit, clear_clicks, search_query):
     return create_job_grid(filtered_df), dash.no_update
 
 @callback(
-    Output("job-details-modal", "is_open"),
-    Output("job-details-content", "children"),
-    Input("job-grid", "cellRendererData"),
-    Input("close-modal", "n_clicks"),
-    State("job-details-modal", "is_open"),
-)
-def toggle_modal(cell_data: Optional[Dict[str, Any]], n_clicks: int, is_open: bool) -> tuple[bool, List[html.Div]]:
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return is_open, []
-    
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    
-    # Handle modal close
-    if trigger_id == "close-modal":
-        return False, []
-    
-    # Handle job details view
-    if trigger_id == "job-grid" and cell_data:
-        if cell_data.get("value", {}).get("colId") == "details":
-            row_data = cell_data.get("value", {}).get("data", {})
-            if row_data:
-                return True, create_job_details_content(row_data)
-    
-    return is_open, []
-
-@callback(
-    [Output('upload-resume', 'children'),
-     Output('resume-upload-status', 'children')],
-    [Input('resume-store', 'data'),
-     Input('upload-resume', 'contents')],
-    [State('upload-resume', 'filename')]
+    Output("upload-resume", "children"),
+    Output("resume-upload-status", "children"),
+    Input("resume-store", "data"),
+    Input("upload-resume", "contents"),
+    State("upload-resume", "filename")
 )
 def update_resume_status(resume_data, contents, filename):
     ctx = dash.callback_context
