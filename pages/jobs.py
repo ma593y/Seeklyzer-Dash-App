@@ -879,6 +879,12 @@ layout = dbc.Container([
                     color="secondary",
                     className="ms-2"
                 ),
+                dbc.Button(
+                    [html.I(className="fas fa-sync-alt me-2"), "Refresh"],
+                    id="refresh-button",
+                    color="info",
+                    className="ms-2"
+                ),
             ], className="mb-4")
         ], width=12)
     ]),
@@ -945,6 +951,19 @@ layout = dbc.Container([
     create_job_details_modal(),
     create_assessment_modal()
 ], fluid=True)
+
+@callback(
+    [Output("job-grid-container", "children", allow_duplicate=True)],
+    [Input("refresh-button", "n_clicks")],
+    prevent_initial_call=True
+)
+def refresh_grid(n_clicks):
+    print("\n=== Refreshing Grid ===")
+    if not n_clicks:
+        return dash.no_update
+    
+    # Load fresh data and create new grid
+    return [create_job_grid()]
 
 @callback(
     [Output("job-grid-container", "children"),
