@@ -166,7 +166,7 @@ def run_extract_script(n_clicks, status):
     try:
         # Run the script using the virtual environment's Python interpreter
         process = subprocess.Popen(
-            [venv_python, 'script_preprocessed_seek_jobs_json_extraction.py'],
+            [venv_python, 'script_seek_jobs_assessment_json_extraction.py'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
