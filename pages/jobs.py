@@ -1220,6 +1220,10 @@ def toggle_assessment_modal(n_clicks, close_clicks, is_open, grid_data, filter_m
         
         # Get filtered data
         df = load_job_data()
+
+        if search_query:
+            # filter df based on the the job ids in grid data
+            df = df[df['Job Id'].isin([data['Job Id'] for data in grid_data])]
         
         # Apply grid filters
         if filter_model:
@@ -1451,10 +1455,11 @@ def create_assessment_display(assessment, job_id):
     Input("assess-all-jobs-button", "n_clicks"),
     [State("resume-store", "data"),
      State("job-grid", "filterModel"),
-     State("search-input", "value")],
+     State("search-input", "value"),
+     State("job-grid", "rowData")],
     prevent_initial_call=True
 )
-def assess_all_jobs(n_clicks, resume_data, filter_model, search_query):
+def assess_all_jobs(n_clicks, resume_data, filter_model, search_query, grid_data):
     print("\n=== Assessing All Jobs ===")
     if not n_clicks or not resume_data:
         print("No clicks or no resume data")
@@ -1473,7 +1478,11 @@ def assess_all_jobs(n_clicks, resume_data, filter_model, search_query):
         
         # Get filtered jobs data
         df = load_job_data()
-        
+
+        if search_query:
+            # filter df based on the the job ids in grid data
+            df = df[df['Job Id'].isin([data['Job Id'] for data in grid_data])]
+
         # Apply grid filters
         if filter_model:
             df = apply_grid_filters(df, filter_model)
