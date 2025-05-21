@@ -841,94 +841,7 @@ def process_resume_assessment(trigger_data):
             ], className="text-center text-danger p-4")
         
         # Create assessment display
-        return html.Div([
-            # Overall match score
-            html.Div([
-                html.H5("Overall Match Score", className="mb-3"),
-                html.Div([
-                    html.Div([
-                        html.Div(
-                            className="progress-bar bg-success",
-                            style={"width": f"{assessment['scores']['overall_score']}%"}
-                        )
-                    ], className="progress", style={"height": "25px"}),
-                    html.Div(
-                        f"{assessment['scores']['overall_score']}%",
-                        className="text-center mt-2"
-                    )
-                ], className="mb-4")
-            ]),
-            
-            # Category scores
-            html.Div([
-                html.H5("Category Scores", className="mb-3"),
-                html.Div([
-                    html.Div([
-                        html.Strong("Key Responsibilities: "),
-                        f"{assessment['scores']['key_responsibilities_duties_score']}%"
-                    ], className="mb-2"),
-                    html.Div([
-                        html.Strong("Qualifications: "),
-                        f"{assessment['scores']['essential_qualifications_experience_score']}%"
-                    ], className="mb-2"),
-                    html.Div([
-                        html.Strong("Skills: "),
-                        f"{assessment['scores']['skills_competencies_score']}%"
-                    ], className="mb-2")
-                ], className="ms-3")
-            ], className="mb-4"),
-            
-            # Detailed assessment
-            html.Div([
-                html.H5("Detailed Assessment", className="mb-3"),
-                html.Div([
-                    html.Div([
-                        html.H6("Key Responsibilities", className="mb-2"),
-                        html.Div([
-                            html.Div([
-                                html.I(className="fas fa-circle text-primary me-2"),
-                                html.Span(item["bullet_point"]),
-                                html.Div([
-                                    html.I(className="fas fa-info-circle text-info me-2"),
-                                    html.Span(f"Match: {item['relevancy_score']*100:.1f}%", className="text-muted")
-                                ], className="ms-4")
-                            ], className="mb-2")
-                            for item in assessment["key_responsibilities_duties"]
-                        ], className="ms-3")
-                    ], className="mb-3"),
-                    
-                    html.Div([
-                        html.H6("Qualifications", className="mb-2"),
-                        html.Div([
-                            html.Div([
-                                html.I(className="fas fa-circle text-primary me-2"),
-                                html.Span(item["bullet_point"]),
-                                html.Div([
-                                    html.I(className="fas fa-info-circle text-info me-2"),
-                                    html.Span(f"Match: {item['relevancy_score']*100:.1f}%", className="text-muted")
-                                ], className="ms-4")
-                            ], className="mb-2")
-                            for item in assessment["essential_qualifications_experience"]
-                        ], className="ms-3")
-                    ], className="mb-3"),
-                    
-                    html.Div([
-                        html.H6("Skills", className="mb-2"),
-                        html.Div([
-                            html.Div([
-                                html.I(className="fas fa-circle text-primary me-2"),
-                                html.Span(item["bullet_point"]),
-                                html.Div([
-                                    html.I(className="fas fa-info-circle text-info me-2"),
-                                    html.Span(f"Match: {item['relevancy_score']*100:.1f}%", className="text-muted")
-                                ], className="ms-4")
-                            ], className="mb-2")
-                            for item in assessment["skills_competencies"]
-                        ], className="ms-3")
-                    ], className="mb-3")
-                ])
-            ])
-        ])
+        return create_assessment_display(assessment, job_id)
         
     except Exception as e:
         print(f"Error in resume assessment: {e}")
@@ -1397,110 +1310,120 @@ def toggle_job_collapse(n_clicks, is_open):
         return not is_open
     return is_open
 
+@callback(
+    Output({"type": "details-collapse", "index": MATCH}, "is_open"),
+    Input({"type": "view-details-button", "index": MATCH}, "n_clicks"),
+    State({"type": "details-collapse", "index": MATCH}, "is_open"),
+    prevent_initial_call=True
+)
+def toggle_details_collapse(n_clicks, is_open):
+    print("\n=== Toggling Details Collapse ===")
+    if n_clicks:
+        return not is_open
+    return is_open
+
 def create_assessment_display(assessment, job_id):
     print("\n=== Creating Assessment Display ===")
     """Helper function to create the assessment display UI"""
     return html.Div([
         # Overall match score
         html.Div([
-            html.H5("Overall Match Score", className="mb-2"),
+            html.H5("Overall Match Score", className="mb-3 text-primary"),
             html.Div([
                 html.Div([
                     html.Div(
                         className="progress-bar bg-success",
                         style={"width": f"{assessment['scores']['overall_score']}%"}
                     )
-                ], className="progress", style={"height": "20px"}),
+                ], className="progress", style={"height": "25px"}),
                 html.Div(
                     f"{assessment['scores']['overall_score']}%",
-                    className="text-center mt-1"
+                    className="text-center mt-2 h5"
                 )
-            ], className="mb-3")
-        ]),
+            ], className="mb-4")
+        ], className="bg-light p-3 rounded"),
         
         # Category scores in a row
         dbc.Row([
             dbc.Col([
                 html.Div([
-                    html.Strong("Key Resp: "),
-                    f"{assessment['scores']['key_responsibilities_duties_score']}%"
-                ], className="mb-1 small"),
+                    html.Strong("Key Responsibilities: ", className="text-primary"),
+                    html.Span(f"{assessment['scores']['key_responsibilities_duties_score']}%", 
+                            className="badge bg-primary ms-1")
+                ], className="mb-2"),
             ], width=4),
             dbc.Col([
                 html.Div([
-                    html.Strong("Quals: "),
-                    f"{assessment['scores']['essential_qualifications_experience_score']}%"
-                ], className="mb-1 small"),
+                    html.Strong("Qualifications: ", className="text-primary"),
+                    html.Span(f"{assessment['scores']['essential_qualifications_experience_score']}%", 
+                            className="badge bg-primary ms-1")
+                ], className="mb-2"),
             ], width=4),
             dbc.Col([
                 html.Div([
-                    html.Strong("Skills: "),
-                    f"{assessment['scores']['skills_competencies_score']}%"
-                ], className="mb-1 small"),
+                    html.Strong("Skills: ", className="text-primary"),
+                    html.Span(f"{assessment['scores']['skills_competencies_score']}%", 
+                            className="badge bg-primary ms-1")
+                ], className="mb-2"),
             ], width=4),
-        ], className="mb-2"),
+        ], className="mb-4"),
         
-        # Detailed assessment collapse
-        dbc.Button(
-            "View Details",
-            id={"type": "view-details-button", "index": job_id},
-            color="link",
-            size="sm",
-            className="mt-2 p-0"
-        ),
-        dbc.Collapse(
+        # Detailed assessment
+        html.Div([
+            html.H5("Detailed Assessment", className="mb-3 text-primary border-bottom pb-2"),
             dbc.Card(
                 dbc.CardBody([
                     # Key responsibilities section
                     html.Div([
-                        html.H6("Key Responsibilities", className="mb-2"),
+                        html.H6("Key Responsibilities", className="mb-3 text-primary"),
                         html.Div([
                             html.Div([
                                 html.Div([
+                                    html.I(className="fas fa-circle text-primary me-2"),
                                     html.Span(item["bullet_point"], className="small"),
-                                    html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
-                                            className="badge rounded-pill bg-secondary ms-1")
-                                ])
-                            ], className="mb-1")
+                                    html.Span(f" {item['relevancy_score']*100:.0f}%", 
+                                            className="badge rounded-pill bg-primary ms-2")
+                                ], className="d-flex align-items-center mb-2")
+                            ], className="ms-3")
                             for item in assessment["key_responsibilities_duties"][:3]
                         ]),
-                    ], className="mb-3"),
+                    ], className="mb-4"),
                     
                     # Qualifications section
                     html.Div([
-                        html.H6("Qualifications", className="mb-2"),
+                        html.H6("Qualifications", className="mb-3 text-primary"),
                         html.Div([
                             html.Div([
                                 html.Div([
+                                    html.I(className="fas fa-graduation-cap text-primary me-2"),
                                     html.Span(item["bullet_point"], className="small"),
-                                    html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
-                                            className="badge rounded-pill bg-secondary ms-1")
-                                ])
-                            ], className="mb-1")
+                                    html.Span(f" {item['relevancy_score']*100:.0f}%", 
+                                            className="badge rounded-pill bg-primary ms-2")
+                                ], className="d-flex align-items-center mb-2")
+                            ], className="ms-3")
                             for item in assessment["essential_qualifications_experience"][:3]
                         ]),
-                    ], className="mb-3"),
+                    ], className="mb-4"),
                     
                     # Skills section
                     html.Div([
-                        html.H6("Skills", className="mb-2"),
+                        html.H6("Skills", className="mb-3 text-primary"),
                         html.Div([
                             html.Div([
                                 html.Div([
+                                    html.I(className="fas fa-tools text-primary me-2"),
                                     html.Span(item["bullet_point"], className="small"),
-                                    html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
-                                            className="badge rounded-pill bg-secondary ms-1")
-                                ])
-                            ], className="mb-1")
+                                    html.Span(f" {item['relevancy_score']*100:.0f}%", 
+                                            className="badge rounded-pill bg-primary ms-2")
+                                ], className="d-flex align-items-center mb-2")
+                            ], className="ms-3")
                             for item in assessment["skills_competencies"][:3]
                         ]),
                     ]),
                 ]), 
-                className="mt-2"
-            ),
-            id={"type": "details-collapse", "index": job_id},
-            is_open=False,
-        )
+                className="shadow-sm"
+            )
+        ], className="bg-light p-3 rounded")
     ])
 
 @callback(
