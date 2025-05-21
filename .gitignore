@@ -129,3 +129,5 @@ data/formatted_resumes_files/resume_*.txt
 data/json_resumes_files/resume_*.json
 data/preprocessed_seek_jobs_files/preprocessed_seek_jobs*
 data/preprocessed_seek_jobs_files/~$*
+
+data/chroma_db/

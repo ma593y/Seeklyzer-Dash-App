@@ -55,7 +55,7 @@ layout = dbc.Container([
                 ]),
                 dbc.CardBody([
                     html.P([
-                        "This script processes the preprocessed job data to extract structured information from job descriptions.",
+                        "This script extracts structured assessment data (responsibilities, qualifications, skills) from job descriptions for resume matching.",
                         html.Br(),
                         "Requires Step 1 to be completed first."
                     ], className="mb-3 text-center"),
