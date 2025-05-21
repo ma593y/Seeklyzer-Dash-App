@@ -2,7 +2,7 @@ import re
 import time
 from typing import Dict, List, Optional, Any
 import dash
-from dash import html, dcc, Input, Output, State, callback
+from dash import html, dcc, Input, Output, State, callback, MATCH
 import dash_bootstrap_components as dbc
 from langchain_xai import ChatXAI
 import pandas as pd
@@ -13,26 +13,7 @@ from datetime import datetime, timedelta
 import base64
 import io
 
-# Add JavaScript for assessment score cell renderer
-assessment_score_js = """
-function AssessmentScore(params) {
-    if (!params.value) return '';
-    
-    const score = params.value;
-    let color = 'text-danger';
-    if (score >= 80) color = 'text-success';
-    else if (score >= 60) color = 'text-warning';
-    
-    return `
-        <div class="d-flex align-items-center">
-            <span class="${color}">${score}%</span>
-            <button class="btn btn-link btn-sm ms-2" onclick="window.dash_clientside.openAssessmentModal('${params.data.Job Id}')">
-                <i class="fas fa-chart-bar"></i>
-            </button>
-        </div>
-    `;
-}
-"""
+
 
 # Register the page
 dash.register_page(
@@ -43,6 +24,7 @@ dash.register_page(
 )
 
 def load_job_data() -> pd.DataFrame:
+    print("\n=== Loading Job Data ===")
     try:
         df = pd.read_parquet("data/preprocessed_seek_jobs_files/preprocessed_seek_jobs_plus_json.parquet")
         # Convert JSON columns to strings for display
@@ -54,7 +36,7 @@ def load_job_data() -> pd.DataFrame:
                 except:
                     # If parsing fails, keep as is
                     pass
-        print("Available columns:", df.columns.tolist())
+        # print("Available columns:", df.columns.tolist())
         return df
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -67,6 +49,7 @@ from langchain_openai import OpenAI
 
 # Extraction function using a single text template
 def extract_filters(user_query: str) -> dict:
+    print("\n=== Extracting Filters ===")
     base_prompt = """
     You are a data‐extraction assistant. A user will give you a free-text job-search query, and you must extract any filter values they mention for these six fields:
 
@@ -138,7 +121,8 @@ def extract_filters(user_query: str) -> dict:
 #############################################
 
 
-def get_column_definitions() -> List[Dict[str, Any]]:
+def get_column_definitions() -> List[Dict[str, Any]]:    
+    print("\n=== Getting Column Definitions ===")
     return [
         {
             "field": "Job Id",
@@ -198,30 +182,6 @@ def get_column_definitions() -> List[Dict[str, Any]]:
             "flex": 1
         },
         {
-            "field": "assessment_score",
-            "headerName": "Match Score",
-            "sortable": True,
-            "filter": True,
-            "cellRenderer": """
-                function(params) {
-                    if (!params.value) return '';
-                    const score = params.value;
-                    let color = 'text-danger';
-                    if (score >= 80) color = 'text-success';
-                    else if (score >= 60) color = 'text-warning';
-                    return `<div class="d-flex align-items-center">
-                        <span class="${color}">${score}%</span>
-                        <button class="btn btn-link btn-sm ms-2" onclick="window.dash_clientside.openAssessmentModal('${params.data.Job Id}')">
-                            <i class="fas fa-chart-bar"></i>
-                        </button>
-                    </div>`;
-                }
-            """,
-            "width": 150,
-            "minWidth": 150,
-            "flex": 0
-        },
-        {
             "field": "actions",
             "headerName": "Actions",
             "sortable": False,
@@ -250,8 +210,7 @@ def create_job_grid(df: pd.DataFrame = None) -> AgGrid:
     ]
     df = df[columns_to_show]
     
-    # Add assessment score column
-    df['assessment_score'] = None
+    
     print("Grid created successfully")
     
     return AgGrid(
@@ -289,6 +248,7 @@ def create_job_grid(df: pd.DataFrame = None) -> AgGrid:
     )
 
 def filter_dataframe(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
+    print("\n=== Filtering DataFrame ===")
     if not filters:
         return df
     
@@ -344,6 +304,7 @@ def filter_dataframe(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     return filtered_df
 
 def create_job_details_modal() -> dbc.Modal:
+    print("\n=== Creating Job Details Modal ===")
     return dbc.Modal([
         dbc.ModalHeader(
             dbc.ModalTitle("Job Details", className="text-primary"),
@@ -373,6 +334,7 @@ def create_job_details_modal() -> dbc.Modal:
     )
 
 def create_assessment_modal() -> dbc.Modal:
+    print("\n=== Creating Assessment Modal ===")
     return dbc.Modal([
         dbc.ModalHeader(
             dbc.ModalTitle("Resume Assessment", className="text-primary"),
@@ -404,6 +366,7 @@ def create_assessment_modal() -> dbc.Modal:
 from bs4 import BeautifulSoup
 
 def replace_heading_with_strong(html_text):
+    print("\n=== Replacing Headings with Strong Tags ===")
     """
     Replace all heading tags (h1-h6) in the given HTML text by extracting their text
     and wrapping it in <strong> tags.
@@ -420,6 +383,7 @@ def replace_heading_with_strong(html_text):
     return str(soup)
 
 def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
+    print("\n=== Creating Job Details Content ===")
     # Get fresh data from the DataFrame
     df = load_job_data()
     job_id = row_data["Job Id"]
@@ -602,6 +566,7 @@ def create_job_details_content(row_data: Dict[str, Any]) -> List[html.Div]:
     return content
 
 def assess_resume_against_requirements(resume_text: str, job_requirements: dict) -> dict:
+    print("\n=== Assessing Resume Against Requirements ===")
     print(resume_text)
     print(job_requirements)
 
@@ -750,26 +715,6 @@ def assess_resume_against_requirements(resume_text: str, job_requirements: dict)
     return response.content
     ########################################################################################
 
-    return {
-        "overall_match_score": 0.0,
-        "category_scores": {
-            "key_responsibilities": 0.0,
-            "qualifications": 0.0,
-            "skills": 0.0
-        },
-        "detailed_assessment": {
-            "key_responsibilities": [],
-            "qualifications": [],
-            "skills": []
-        },
-        "missing_requirements": {
-            "key_responsibilities": [],
-            "qualifications": [],
-            "skills": []
-        },
-        "recommendations": []
-    }
-
 @callback(
     [Output("job-details-modal", "is_open"),
      Output("job-details-content", "children")],
@@ -778,6 +723,7 @@ def assess_resume_against_requirements(resume_text: str, job_requirements: dict)
     [State("job-details-modal", "is_open")],
 )
 def toggle_modal(cell_data: Optional[Dict[str, Any]], n_clicks: int, is_open: bool) -> tuple[bool, List[html.Div]]:
+    print("\n=== Toggling Modal ===")
     ctx = dash.callback_context
     if not ctx.triggered:
         return is_open, []
@@ -806,6 +752,7 @@ def toggle_modal(cell_data: Optional[Dict[str, Any]], n_clicks: int, is_open: bo
     prevent_initial_call=True
 )
 def update_resume_assessment(resume_data, is_modal_open, cell_data):
+    print("\n=== Updating Resume Assessment ===")
     if not is_modal_open or not resume_data or not cell_data:
         return dash.no_update, None
     
@@ -867,6 +814,7 @@ def update_resume_assessment(resume_data, is_modal_open, cell_data):
     prevent_initial_call=True
 )
 def process_resume_assessment(trigger_data):
+    print("\n=== Processing Resume Assessment ===")
     if not trigger_data:
         return None
         
@@ -994,6 +942,7 @@ layout = dbc.Container([
     # Add dcc.Store for resume data
     dcc.Store(id='resume-store', storage_type='local'),
     dcc.Store(id='assessment-trigger', data=None),
+    dcc.Store(id='assessment-all-store', data=None),
     html.H1("Job Finder", className="text-center my-4"),
     dbc.Row([
         dbc.Col([
@@ -1094,7 +1043,7 @@ layout = dbc.Container([
     prevent_initial_call=True
 )
 def update_grid(n_clicks, n_submit, clear_clicks, search_query):
-    print("\n=== Grid Update Flow ===")
+    print("\n=== Updating Grid ===")
     ctx = dash.callback_context
     if not ctx.triggered:
         print("No trigger detected")
@@ -1129,6 +1078,7 @@ def update_grid(n_clicks, n_submit, clear_clicks, search_query):
     State("upload-resume", "filename")
 )
 def update_resume_status(resume_data, contents, filename):
+    print("\n=== Updating Resume Status ===")
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
     
@@ -1190,7 +1140,7 @@ def update_resume_status(resume_data, contents, filename):
     prevent_initial_call=True
 )
 def store_resume_data(contents, filename):
-    print("\n=== Resume Upload Flow ===")
+    print("\n=== Storing Resume Data ===")
     print(f"Upload triggered with filename: {filename}")
     
     if contents is None:
@@ -1223,6 +1173,7 @@ def store_resume_data(contents, filename):
     [State("collapse-resume", "is_open")],
 )
 def toggle_resume_collapse(n, is_open):
+    print("\n=== Toggling Resume Collapse ===")
     if n:
         return not is_open
     return is_open
@@ -1232,11 +1183,12 @@ def toggle_resume_collapse(n, is_open):
     Input("resume-store", "data")
 )
 def toggle_assess_button(resume_data):
-    print("\n=== Assess Button State ===")
+    print("\n=== Toggling Assess Button ===")
     print(f"Resume data present: {bool(resume_data)}")
     return not bool(resume_data)
 
 def apply_grid_filters(df: pd.DataFrame, filter_model: dict) -> pd.DataFrame:
+    print("\n=== Applying Grid Filters ===")
     """
     Apply AG Grid filter model to the dataframe
     
@@ -1317,7 +1269,7 @@ def apply_grid_filters(df: pd.DataFrame, filter_model: dict) -> pd.DataFrame:
     prevent_initial_call=True
 )
 def toggle_assessment_modal(n_clicks, close_clicks, is_open, grid_data, filter_model, search_query):
-    print("\n=== Assessment Modal Flow ===")
+    print("\n=== Toggling Assessment Modal ===")
     ctx = dash.callback_context
     if not ctx.triggered:
         print("No trigger detected")
@@ -1423,6 +1375,13 @@ def toggle_assessment_modal(n_clicks, close_clicks, is_open, grid_data, filter_m
                         className="text-muted"
                     )
                 ], className="text-muted mb-3"),
+                dbc.Button(
+                    "Assess All Jobs",
+                    id="assess-all-jobs-button",
+                    color="primary",
+                    className="mb-3 w-100",
+                    n_clicks=0
+                ),
                 html.Div(job_list, className="mt-3"),
                 collapse_js
             ], className="p-3 bg-light rounded")
@@ -1433,206 +1392,227 @@ def toggle_assessment_modal(n_clicks, close_clicks, is_open, grid_data, filter_m
 
 # Add callback for collapsible sections
 @callback(
-    Output({"type": "job-collapse", "index": dash.dependencies.MATCH}, "is_open"),
-    Input({"type": "job-collapse-button", "index": dash.dependencies.MATCH}, "n_clicks"),
-    State({"type": "job-collapse", "index": dash.dependencies.MATCH}, "is_open"),
+    Output({"type": "job-collapse", "index": MATCH}, "is_open"),
+    Input({"type": "job-collapse-button", "index": MATCH}, "n_clicks"),
+    State({"type": "job-collapse", "index": MATCH}, "is_open"),
     prevent_initial_call=True
 )
 def toggle_job_collapse(n_clicks, is_open):
+    print("\n=== Toggling Job Collapse ===")
     if n_clicks:
         return not is_open
     return is_open
 
 # Add callback for job assessment
 @callback(
-    Output({"type": "job-assessment-results", "index": dash.dependencies.MATCH}, "children"),
-    Input({"type": "job-assess-button", "index": dash.dependencies.MATCH}, "n_clicks"),
-    State("resume-store", "data"),
+    Output({"type": "job-assessment-results", "index": MATCH}, "children"),
+    [Input({"type": "job-assess-button", "index": MATCH}, "n_clicks"),
+     Input("assessment-all-store", "data")],
+    [State("resume-store", "data"),
+     State({"type": "job-assessment-results", "index": MATCH}, "id")],
     prevent_initial_call=True
 )
-def assess_job(n_clicks, resume_data):
-    if not n_clicks or not resume_data:
+def assess_job(n_clicks, all_results, resume_data, element_id):
+    print("\n=== Assessing Job ===")
+    ctx = dash.callback_context
+    if not ctx.triggered:
         return None
         
-    ctx = dash.callback_context
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    job_id = json.loads(button_id)["index"]
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    job_id = element_id["index"]
     
-    try:
-        # Get job data
-        df = load_job_data()
-        job_data = df[df["Job Id"] == job_id].iloc[0]
-        
-        if "Extracted Details" not in job_data:
-            return html.Div([
-                html.I(className="fas fa-exclamation-circle text-warning me-2"),
-                html.Span("No job details available for assessment")
-            ], className="text-warning")
-        
-        # Get resume content
-        content_string = resume_data['content']
-        if ',' in content_string:
-            content_type, content_string = content_string.split(',', 1)
-        else:
-            content_string = content_string
-        
-        decoded = base64.b64decode(content_string)
-        resume_text = decoded.decode('utf-8')
-        
-        # Get job requirements
-        job_requirements = job_data["Extracted Details"]
-        if isinstance(job_requirements, str):
-            job_requirements = json.loads(job_requirements)
-        
-        # Directly perform assessment without using loading spinner
+    # Handle individual job assessment
+    if trigger_id.startswith('{"type":"job-assess-button"'):
+        if not n_clicks or not resume_data:
+            return None
+            
         try:
-            print(f"Starting assessment for job ID: {job_id}")
-            assessment_response = assess_resume_against_requirements(resume_text, job_requirements)
-            print(f"Assessment completed for job ID: {job_id}")
+            # Get job data
+            df = load_job_data()
+            job_data = df[df["Job Id"] == job_id].iloc[0]
             
-            # Parse the assessment response
-            try:
-                assessment = json.loads(assessment_response)
-            except json.JSONDecodeError:
-                print(f"Error parsing assessment response for job ID {job_id}: {assessment_response}")
-                return html.Div([
-                    html.I(className="fas fa-exclamation-circle text-danger me-2"),
-                    html.Span("Error processing resume assessment")
-                ], className="text-center text-danger p-4")
-            
-            # Check for error in response
-            if 'error' in assessment:
+            if "Extracted Details" not in job_data:
                 return html.Div([
                     html.I(className="fas fa-exclamation-circle text-warning me-2"),
-                    html.Span(f"Error: {assessment['error']}")
+                    html.Span("No job details available for assessment")
                 ], className="text-warning")
             
-            # Create assessment display
-            return html.Div([
-                # Overall match score
-                html.Div([
-                    html.H5("Overall Match Score", className="mb-2"),
-                    html.Div([
-                        html.Div([
-                            html.Div(
-                                className="progress-bar bg-success",
-                                style={"width": f"{assessment['scores']['overall_score']}%"}
-                            )
-                        ], className="progress", style={"height": "20px"}),
-                        html.Div(
-                            f"{assessment['scores']['overall_score']}%",
-                            className="text-center mt-1"
-                        )
-                    ], className="mb-3")
-                ]),
+            # Get resume content
+            content_string = resume_data['content']
+            if ',' in content_string:
+                content_type, content_string = content_string.split(',', 1)
+            else:
+                content_string = content_string
+            
+            decoded = base64.b64decode(content_string)
+            resume_text = decoded.decode('utf-8')
+            
+            # Get job requirements
+            job_requirements = job_data["Extracted Details"]
+            if isinstance(job_requirements, str):
+                job_requirements = json.loads(job_requirements)
+            
+            # Perform assessment
+            try:
+                print(f"Starting assessment for job ID: {job_id}")
+                assessment_response = assess_resume_against_requirements(resume_text, job_requirements)
+                print(f"Assessment completed for job ID: {job_id}")
                 
-                # Category scores in a row
-                dbc.Row([
-                    dbc.Col([
-                        html.Div([
-                            html.Strong("Key Resp: "),
-                            f"{assessment['scores']['key_responsibilities_duties_score']}%"
-                        ], className="mb-1 small"),
-                    ], width=4),
-                    dbc.Col([
-                        html.Div([
-                            html.Strong("Quals: "),
-                            f"{assessment['scores']['essential_qualifications_experience_score']}%"
-                        ], className="mb-1 small"),
-                    ], width=4),
-                    dbc.Col([
-                        html.Div([
-                            html.Strong("Skills: "),
-                            f"{assessment['scores']['skills_competencies_score']}%"
-                        ], className="mb-1 small"),
-                    ], width=4),
-                ], className="mb-2"),
+                # Parse the assessment response
+                try:
+                    assessment = json.loads(assessment_response)
+                except json.JSONDecodeError:
+                    print(f"Error parsing assessment response for job ID {job_id}: {assessment_response}")
+                    return html.Div([
+                        html.I(className="fas fa-exclamation-circle text-danger me-2"),
+                        html.Span("Error processing resume assessment")
+                    ], className="text-center text-danger p-4")
                 
-                # Detailed assessment collapse
-                dbc.Button(
-                    "View Details",
-                    id={"type": "view-details-button", "index": job_id},
-                    color="link",
-                    size="sm",
-                    className="mt-2 p-0"
-                ),
-                dbc.Collapse(
-                    dbc.Card(
-                        dbc.CardBody([
-                            # Key responsibilities section
-                            html.Div([
-                                html.H6("Key Responsibilities", className="mb-2"),
-                                html.Div([
-                                    html.Div([
-                                        html.Div([
-                                            html.Span(item["bullet_point"], className="small"),
-                                            html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
-                                                    className="badge rounded-pill bg-secondary ms-1")
-                                        ])
-                                    ], className="mb-1")
-                                    for item in assessment["key_responsibilities_duties"][:3]  # Show top 3
-                                ]),
-                            ], className="mb-3"),
-                            
-                            # Qualifications section
-                            html.Div([
-                                html.H6("Qualifications", className="mb-2"),
-                                html.Div([
-                                    html.Div([
-                                        html.Div([
-                                            html.Span(item["bullet_point"], className="small"),
-                                            html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
-                                                    className="badge rounded-pill bg-secondary ms-1")
-                                        ])
-                                    ], className="mb-1")
-                                    for item in assessment["essential_qualifications_experience"][:3]  # Show top 3
-                                ]),
-                            ], className="mb-3"),
-                            
-                            # Skills section
-                            html.Div([
-                                html.H6("Skills", className="mb-2"),
-                                html.Div([
-                                    html.Div([
-                                        html.Div([
-                                            html.Span(item["bullet_point"], className="small"),
-                                            html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
-                                                    className="badge rounded-pill bg-secondary ms-1")
-                                        ])
-                                    ], className="mb-1")
-                                    for item in assessment["skills_competencies"][:3]  # Show top 3
-                                ]),
-                            ]),
-                        ]), 
-                        className="mt-2"
-                    ),
-                    id={"type": "details-collapse", "index": job_id},
-                    is_open=False,
-                )
-            ])
+                # Check for error in response
+                if 'error' in assessment:
+                    return html.Div([
+                        html.I(className="fas fa-exclamation-circle text-warning me-2"),
+                        html.Span(f"Error: {assessment['error']}")
+                    ], className="text-warning")
                 
+                return create_assessment_display(assessment, job_id)
+                    
+            except Exception as e:
+                print(f"Error during assessment for job ID {job_id}: {e}")
+                return html.Div([
+                    html.I(className="fas fa-exclamation-circle text-danger me-2"),
+                    html.Span(f"Assessment error: {str(e)}")
+                ], className="text-danger")
+            
         except Exception as e:
-            print(f"Error during assessment for job ID {job_id}: {e}")
+            print(f"Error in job assessment: {e}")
             return html.Div([
                 html.I(className="fas fa-exclamation-circle text-danger me-2"),
-                html.Span(f"Assessment error: {str(e)}")
+                html.Span(f"Error: {str(e)}")
             ], className="text-danger")
+    
+    # Handle assess all jobs results
+    elif trigger_id == "assessment-all-store" and all_results and all_results.get("status") == "complete":
+        results = all_results.get("results", {})
         
-    except Exception as e:
-        print(f"Error in job assessment: {e}")
-        return html.Div([
-            html.I(className="fas fa-exclamation-circle text-danger me-2"),
-            html.Span(f"Error: {str(e)}")
-        ], className="text-danger")
+        if job_id not in results:
+            return dash.no_update
+        
+        job_result = results[job_id]
+        
+        if job_result.get("error", False):
+            return html.Div([
+                html.I(className="fas fa-exclamation-circle text-warning me-2"),
+                html.Span(job_result.get("message", "Unknown error"))
+            ], className="text-warning")
+        
+        assessment = job_result.get("data", {})
+        return create_assessment_display(assessment, job_id)
+    
+    return None
 
-# Add callback for toggling the details collapse
-@callback(
-    Output({"type": "details-collapse", "index": dash.dependencies.MATCH}, "is_open"),
-    Input({"type": "view-details-button", "index": dash.dependencies.MATCH}, "n_clicks"),
-    State({"type": "details-collapse", "index": dash.dependencies.MATCH}, "is_open"),
-    prevent_initial_call=True
-)
-def toggle_details_collapse(n_clicks, is_open):
-    if n_clicks:
-        return not is_open
-    return is_open
+def create_assessment_display(assessment, job_id):
+    print("\n=== Creating Assessment Display ===")
+    """Helper function to create the assessment display UI"""
+    return html.Div([
+        # Overall match score
+        html.Div([
+            html.H5("Overall Match Score", className="mb-2"),
+            html.Div([
+                html.Div([
+                    html.Div(
+                        className="progress-bar bg-success",
+                        style={"width": f"{assessment['scores']['overall_score']}%"}
+                    )
+                ], className="progress", style={"height": "20px"}),
+                html.Div(
+                    f"{assessment['scores']['overall_score']}%",
+                    className="text-center mt-1"
+                )
+            ], className="mb-3")
+        ]),
+        
+        # Category scores in a row
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    html.Strong("Key Resp: "),
+                    f"{assessment['scores']['key_responsibilities_duties_score']}%"
+                ], className="mb-1 small"),
+            ], width=4),
+            dbc.Col([
+                html.Div([
+                    html.Strong("Quals: "),
+                    f"{assessment['scores']['essential_qualifications_experience_score']}%"
+                ], className="mb-1 small"),
+            ], width=4),
+            dbc.Col([
+                html.Div([
+                    html.Strong("Skills: "),
+                    f"{assessment['scores']['skills_competencies_score']}%"
+                ], className="mb-1 small"),
+            ], width=4),
+        ], className="mb-2"),
+        
+        # Detailed assessment collapse
+        dbc.Button(
+            "View Details",
+            id={"type": "view-details-button", "index": job_id},
+            color="link",
+            size="sm",
+            className="mt-2 p-0"
+        ),
+        dbc.Collapse(
+            dbc.Card(
+                dbc.CardBody([
+                    # Key responsibilities section
+                    html.Div([
+                        html.H6("Key Responsibilities", className="mb-2"),
+                        html.Div([
+                            html.Div([
+                                html.Div([
+                                    html.Span(item["bullet_point"], className="small"),
+                                    html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
+                                            className="badge rounded-pill bg-secondary ms-1")
+                                ])
+                            ], className="mb-1")
+                            for item in assessment["key_responsibilities_duties"][:3]
+                        ]),
+                    ], className="mb-3"),
+                    
+                    # Qualifications section
+                    html.Div([
+                        html.H6("Qualifications", className="mb-2"),
+                        html.Div([
+                            html.Div([
+                                html.Div([
+                                    html.Span(item["bullet_point"], className="small"),
+                                    html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
+                                            className="badge rounded-pill bg-secondary ms-1")
+                                ])
+                            ], className="mb-1")
+                            for item in assessment["essential_qualifications_experience"][:3]
+                        ]),
+                    ], className="mb-3"),
+                    
+                    # Skills section
+                    html.Div([
+                        html.H6("Skills", className="mb-2"),
+                        html.Div([
+                            html.Div([
+                                html.Div([
+                                    html.Span(item["bullet_point"], className="small"),
+                                    html.Span(f" ({item['relevancy_score']*100:.0f}%)", 
+                                            className="badge rounded-pill bg-secondary ms-1")
+                                ])
+                            ], className="mb-1")
+                            for item in assessment["skills_competencies"][:3]
+                        ]),
+                    ]),
+                ]), 
+                className="mt-2"
+            ),
+            id={"type": "details-collapse", "index": job_id},
+            is_open=False,
+        )
+    ])
