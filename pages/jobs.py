@@ -12,6 +12,9 @@ import os
 from datetime import datetime, timedelta
 import base64
 import io
+# from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
+from langchain_chroma import Chroma
 
 
 
@@ -890,6 +893,31 @@ layout = dbc.Container([
     ]),
     dbc.Row([
         dbc.Col([
+            dbc.InputGroup([
+                dbc.Input(
+                    id="semantic-search-input",
+                    placeholder="Search jobs semantically (e.g., 'Looking for roles that involve machine learning and data analysis')",
+                    type="text",
+                    className="form-control",
+                    n_submit=0
+                ),
+                dbc.Button(
+                    "Semantic Search",
+                    id="semantic-search-button",
+                    color="primary",
+                    className="ms-2"
+                ),
+                dbc.Button(
+                    "Clear",
+                    id="clear-semantic-button",
+                    color="secondary",
+                    className="ms-2"
+                ),
+            ], className="mb-4")
+        ], width=12)
+    ]),
+    dbc.Row([
+        dbc.Col([
             html.Div([
                 dbc.Button(
                     [html.I(className="fas fa-file-upload me-2"), "Upload Resume"],
@@ -966,7 +994,7 @@ def refresh_grid(n_clicks):
     return [create_job_grid()]
 
 @callback(
-    [Output("job-grid-container", "children"),
+    [Output("job-grid-container", "children", allow_duplicate=True),
      Output("search-input", "value")],
     [Input("search-button", "n_clicks"),
      Input("search-input", "n_submit"),
@@ -1565,3 +1593,71 @@ def display_job_assessment(all_results, element_id):
     
     assessment = job_result.get("data", {})
     return create_assessment_display(assessment, job_id)
+
+@callback(
+    [Output("job-grid-container", "children", allow_duplicate=True),
+     Output("semantic-search-input", "value")],
+    [Input("semantic-search-button", "n_clicks"),
+     Input("semantic-search-input", "n_submit"),
+     Input("clear-semantic-button", "n_clicks")],
+    [State("semantic-search-input", "value"),
+     State("job-grid", "rowData")],
+    prevent_initial_call=True
+)
+def update_grid_semantic(n_clicks, n_submit, clear_clicks, search_query, grid_data):
+    print("\n=== Updating Grid with Semantic Search ===")
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        print("No trigger detected")
+        return create_job_grid(), dash.no_update
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    print(f"Triggered by: {trigger_id}")
+    
+    if trigger_id == "clear-semantic-button":
+        print("Clearing semantic search")
+        return create_job_grid(), ""
+    
+    if not search_query:
+        print("No semantic search query provided")
+        return create_job_grid(), dash.no_update
+    
+    print(f"Processing semantic search query: {search_query}")
+    
+    
+    try:
+        # Load and filter the data
+        df = load_job_data()
+        filtered_df = df.copy()
+
+        # 1) Rebuild your embeddings object
+        embeds = OpenAIEmbeddings()
+
+        # 2) Point Chroma at the folder where you persisted before
+        persist_dir = os.path.join("data", "chroma_db")
+        vectorstore = Chroma(embedding_function=embeds, persist_directory=persist_dir)
+
+        # Now `vectorstore` is your original DB, ready for searches:
+        retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 10})
+
+        # invoke search with filter
+        job_ids = [data['Job Id'] for data in grid_data]
+        results = retriever.invoke(search_query, filter={"job_id": {"$in": job_ids}})
+
+        # dedupe by page_content
+        unique_jobs = list(doc.metadata["job_id"] for doc in results)
+
+        print(f"Semantic search results: {len(unique_jobs)} rows")
+
+        print(unique_jobs)
+
+        # create a new dataframe with the unique jobs
+        filtered_df = filtered_df[filtered_df["Job Id"].isin(unique_jobs)]
+        
+        print(f"Semantic search results: {len(filtered_df)} rows")
+        
+        return create_job_grid(filtered_df), dash.no_update
+        
+    except Exception as e:
+        print(f"Error in semantic search: {e}")
+        return create_job_grid(), dash.no_update
