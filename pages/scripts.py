@@ -51,7 +51,7 @@ layout = dbc.Container([
             # Script 2: JSON Extraction
             dbc.Card([
                 dbc.CardHeader([
-                    html.H4("Step 2: Extract Job Details", className="mb-0 text-center")
+                    html.H4("Step 2: Extract Job Assessment Details", className="mb-0 text-center")
                 ]),
                 dbc.CardBody([
                     html.P([
@@ -70,6 +70,30 @@ layout = dbc.Container([
                     ], className="text-center"),
                     html.Div(id="extract-script-output", className="mt-3")
                 ])
+            ], className="mb-4"),
+
+            # Script 3: Vector Store Creation
+            dbc.Card([
+                dbc.CardHeader([
+                    html.H4("Step 3: Create Vector Store", className="mb-0 text-center")
+                ]),
+                dbc.CardBody([
+                    html.P([
+                        "This script creates a vector store from the processed job data for semantic search capabilities.",
+                        html.Br(),
+                        "Requires Step 2 to be completed first."
+                    ], className="mb-3 text-center"),
+                    html.Div([
+                        dbc.Button(
+                            [html.I(className="fas fa-play me-2"), "Run Script"],
+                            id="run-vector-script",
+                            color="primary",
+                            className="mb-3",
+                            disabled=True
+                        )
+                    ], className="text-center"),
+                    html.Div(id="vector-script-output", className="mt-3")
+                ])
             ])
         ], width=6)  # Set width to 6 (50% of 12 columns) and center it
     ], justify="center"),  # Center the row
@@ -77,7 +101,8 @@ layout = dbc.Container([
     # Store for script status
     dcc.Store(id='script-status-store', data={
         'fetch_completed': False,
-        'extract_completed': False
+        'extract_completed': False,
+        'vector_completed': False
     })
 ], fluid=True)
 
@@ -154,14 +179,16 @@ def run_fetch_script(n_clicks, status):
         return output, True, status
 
 @callback(
-    Output("extract-script-output", "children"),
+    [Output("extract-script-output", "children"),
+     Output("run-vector-script", "disabled"),
+     Output("script-status-store", "data", allow_duplicate=True)],
     Input("run-extract-script", "n_clicks"),
     State("script-status-store", "data"),
     prevent_initial_call=True
 )
 def run_extract_script(n_clicks, status):
     if not n_clicks or not status.get('fetch_completed'):
-        return dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update
         
     try:
         # Run the script using the virtual environment's Python interpreter
@@ -179,6 +206,76 @@ def run_extract_script(n_clicks, status):
         if process.returncode == 0:
             # Update status
             status['extract_completed'] = True
+            
+            # Create success message
+            output = html.Div([
+                html.Div([
+                    html.I(className="fas fa-check-circle text-success me-2"),
+                    "Script completed successfully!"
+                ], className="alert alert-success"),
+                html.Div([
+                    html.H6("Output:", className="mt-3"),
+                    html.Pre(stdout, className="bg-light p-3 rounded")
+                ])
+            ])
+            
+            return output, False, status
+        else:
+            # Create error message
+            output = html.Div([
+                html.Div([
+                    html.I(className="fas fa-exclamation-circle text-danger me-2"),
+                    "Script failed!"
+                ], className="alert alert-danger"),
+                html.Div([
+                    html.H6("Error:", className="mt-3"),
+                    html.Pre(stderr, className="bg-light p-3 rounded")
+                ])
+            ])
+            
+            return output, True, status
+            
+    except Exception as e:
+        # Create error message
+        output = html.Div([
+            html.Div([
+                html.I(className="fas fa-exclamation-circle text-danger me-2"),
+                "Error running script!"
+            ], className="alert alert-danger"),
+            html.Div([
+                html.H6("Error:", className="mt-3"),
+                html.Pre(str(e), className="bg-light p-3 rounded")
+            ])
+        ])
+        
+        return output, True, status
+
+@callback(
+    Output("vector-script-output", "children"),
+    Input("run-vector-script", "n_clicks"),
+    State("script-status-store", "data"),
+    prevent_initial_call=True
+)
+def run_vector_script(n_clicks, status):
+    if not n_clicks or not status.get('extract_completed'):
+        return dash.no_update
+        
+    try:
+        # Run the script using the virtual environment's Python interpreter
+        process = subprocess.Popen(
+            [venv_python, 'script_create_vector_store.py'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Get output
+        stdout, stderr = process.communicate()
+        
+        # Check if script completed successfully
+        if process.returncode == 0:
+            # Update status
+            status['vector_completed'] = True
             
             # Create success message
             output = html.Div([
@@ -245,6 +342,22 @@ def show_fetch_processing(n_clicks):
     prevent_initial_call=True
 )
 def show_extract_processing(n_clicks):
+    if not n_clicks:
+        return dash.no_update
+        
+    return html.Div([
+        html.Div([
+            html.I(className="fas fa-spinner fa-spin me-2"),
+            "Processing... Please wait."
+        ], className="alert alert-info")
+    ])
+
+@callback(
+    Output("vector-script-output", "children", allow_duplicate=True),
+    Input("run-vector-script", "n_clicks"),
+    prevent_initial_call=True
+)
+def show_vector_processing(n_clicks):
     if not n_clicks:
         return dash.no_update
         
