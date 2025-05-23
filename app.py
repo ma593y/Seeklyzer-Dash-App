@@ -98,8 +98,11 @@ def main() -> None:
     """Main entry point for the application."""
     try:
         logger.info("Starting Seeklyzer Dash App...")
-        logger.info("Server running at http://127.0.0.1:8050/")
-        app.run(debug=True)
+        logger.info("Server running at http://127.0.0.1:8050/scripts")
+        app.run(
+            debug=False,
+            port=8050
+        )
     except Exception as e:
         logger.error(f"Critical error: {str(e)}", exc_info=True)
     finally:
