@@ -1436,7 +1436,7 @@ def create_assessment_display(assessment, job_id):
                                             className="badge rounded-pill bg-primary ms-2")
                                 ], className="d-flex align-items-center mb-2")
                             ], className="ms-3")
-                            for item in assessment["key_responsibilities_duties"][:3]
+                            for item in assessment["key_responsibilities_duties"]
                         ]),
                     ], className="mb-4"),
                     
@@ -1452,7 +1452,7 @@ def create_assessment_display(assessment, job_id):
                                             className="badge rounded-pill bg-primary ms-2")
                                 ], className="d-flex align-items-center mb-2")
                             ], className="ms-3")
-                            for item in assessment["essential_qualifications_experience"][:3]
+                            for item in assessment["essential_qualifications_experience"]
                         ]),
                     ], className="mb-4"),
                     
@@ -1468,7 +1468,7 @@ def create_assessment_display(assessment, job_id):
                                             className="badge rounded-pill bg-primary ms-2")
                                 ], className="d-flex align-items-center mb-2")
                             ], className="ms-3")
-                            for item in assessment["skills_competencies"][:3]
+                            for item in assessment["skills_competencies"]
                         ]),
                     ]),
                 ]), 
