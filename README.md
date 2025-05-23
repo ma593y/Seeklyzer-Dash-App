@@ -49,7 +49,7 @@ cd seeklyzer
 ```bash
 # Windows
 python -m venv venv
-.\venv\Scripts\activate
+./venv/Scripts/activate
 
 # Linux/Mac
 python3 -m venv venv
